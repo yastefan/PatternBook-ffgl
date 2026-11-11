@@ -43,7 +43,8 @@ private:
 	float speed    = 0.35f;
 	float amount   = 0.5f;
 	float hitAmount = 0.5f;
-	int motionMode  = 0;// 0 endless, 1 sway
+	float motions[ 3 ] = { 1.0f, 0.0f, 0.0f };// Motion 1-3: strength of each of the pattern's movements
+	int loopMode    = 0;// 0 endless, 1 sway
 	int hitEvery   = 0;// 0 = only the Hit button
 	bool hitPressed = false;
 	bool hitPending = false;
@@ -56,7 +57,7 @@ private:
 	float lastBarPhase  = -1.0f;
 	bool hostSendsBeats = false;
 	double phase        = 0.0;// animation cycles at the chosen speed
-	double motion       = 0.0;// cycles weighted by Amount, for drifts that must not jump when Amount moves
+	double travel[ 3 ]  = { 0.0, 0.0, 0.0 };// cycles weighted by Amount and each Motion, for drifts that must not jump when they move
 	double hitCount     = 0.0;
 	double hitAge       = 1000.0;// seconds since the last hit
 	double flyX = 0.0, flyZ = 0.0;// Noise: Terrain camera position, flying where Rotation points

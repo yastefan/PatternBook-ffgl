@@ -40,7 +40,10 @@ enum ParamID
 
 	PID_SPEED,
 	PID_AMOUNT,
-	PID_MOTION,
+	PID_MOTION1,
+	PID_MOTION2,
+	PID_MOTION3,
+	PID_LOOP,
 	PID_HIT,
 	PID_HIT_AMOUNT,
 	PID_HIT_EVERY,
@@ -67,8 +70,8 @@ enum Family
 };
 
 // The Pattern menu, grouped by family. Each entry names the shader's family
-// and variant, and what Form, Form 2 and Form 3 do in it (for the parameter
-// display). Every pattern uses all three.
+// and variant, and what Form 1-3 and Motion 1-3 do in it (for the parameter
+// display). Every pattern uses all six.
 struct PatternEntry
 {
 	const char* name;
@@ -77,43 +80,44 @@ struct PatternEntry
 	const char* form;
 	const char* form2;
 	const char* form3;
+	const char* motion[ 3 ];
 };
 const PatternEntry kPatterns[] = {
-	{ "Grid: Arcs", FAMILY_GRID, 0, "ribbon", "lines", "density" },
-	{ "Grid: Diagonals", FAMILY_GRID, 1, "lines", "density", "direction" },
-	{ "Grid: Squares", FAMILY_GRID, 2, "size", "nested", "roundness" },
-	{ "Grid: Dots", FAMILY_GRID, 3, "dot size", "wavelength", "ring" },
+	{ "Grid: Arcs", FAMILY_GRID, 0, "ribbon", "lines", "density", { "turns", "ribbon breath", "drift" } },
+	{ "Grid: Diagonals", FAMILY_GRID, 1, "lines", "density", "direction", { "turns", "drift", "line pulse" } },
+	{ "Grid: Squares", FAMILY_GRID, 2, "size", "nested", "roundness", { "turning", "size breath", "drift" } },
+	{ "Grid: Dots", FAMILY_GRID, 3, "dot size", "wavelength", "ring", { "breathing", "drift", "spin" } },
 
-	{ "Radial: Spiral", FAMILY_RADIAL, 0, "arms", "tightness", "hole" },
-	{ "Radial: Broken Rings", FAMILY_RADIAL, 1, "gaps", "segments", "speed spread" },
-	{ "Radial: Rays", FAMILY_RADIAL, 2, "inner radius", "count", "lengths" },
-	{ "Radial: Dot Rings", FAMILY_RADIAL, 3, "dot size", "density", "slide" },
-	{ "Radial: Chords", FAMILY_RADIAL, 4, "factor", "inner radius", "span" },
+	{ "Radial: Spiral", FAMILY_RADIAL, 0, "arms", "tightness", "hole", { "spin", "breath", "arm waves" } },
+	{ "Radial: Broken Rings", FAMILY_RADIAL, 1, "gaps", "segments", "speed spread", { "spin", "gap breath", "ring ripple" } },
+	{ "Radial: Rays", FAMILY_RADIAL, 2, "inner radius", "count", "lengths", { "rays", "bend", "length pulse" } },
+	{ "Radial: Dot Rings", FAMILY_RADIAL, 3, "dot size", "density", "slide", { "slide", "dot pulse", "ring waves" } },
+	{ "Radial: Chords", FAMILY_RADIAL, 4, "factor", "inner radius", "span", { "roll", "factor swing", "inner breath" } },
 
-	{ "Iso: Cubes", FAMILY_ISO, 0, "scatter", "contrast", "size" },
-	{ "Iso: Wire Cubes", FAMILY_ISO, 1, "inner cube", "outline", "size" },
-	{ "Iso: Hatched Cubes", FAMILY_ISO, 2, "hatching", "top hatching", "size" },
-	{ "Iso: Noise Heights", FAMILY_ISO, 4, "height", "feature size", "terraces" },
-	{ "Iso: Lattice", FAMILY_ISO, 3, "weave", "weave length", "families" },
+	{ "Iso: Cubes", FAMILY_ISO, 0, "scatter", "contrast", "size", { "size wave", "light", "drift" } },
+	{ "Iso: Wire Cubes", FAMILY_ISO, 1, "inner cube", "outline", "size", { "flips", "inner breath", "drift" } },
+	{ "Iso: Hatched Cubes", FAMILY_ISO, 2, "hatching", "top hatching", "size", { "size wave", "hatch slide", "drift" } },
+	{ "Iso: Noise Heights", FAMILY_ISO, 4, "height", "feature size", "terraces", { "drift", "surge", "rain" } },
+	{ "Iso: Lattice", FAMILY_ISO, 3, "weave", "weave length", "families", { "glide", "weave travel", "spin" } },
 
-	{ "Noise: Flow Lines", FAMILY_NOISE, 0, "turbulence", "feature size", "detail" },
-	{ "Noise: Contours", FAMILY_NOISE, 1, "levels", "feature size", "detail" },
-	{ "Noise: Terrain", FAMILY_NOISE, 2, "height", "valley width", "view distance" },
-	{ "Noise: Circles", FAMILY_NOISE, 3, "rings", "density", "size spread" },
+	{ "Noise: Flow Lines", FAMILY_NOISE, 0, "turbulence", "feature size", "detail", { "evolve", "flow", "vortex" } },
+	{ "Noise: Contours", FAMILY_NOISE, 1, "levels", "feature size", "detail", { "evolve", "rise", "drift" } },
+	{ "Noise: Terrain", FAMILY_NOISE, 2, "height", "valley width", "view distance", { "flight", "waves", "camera sway" } },
+	{ "Noise: Circles", FAMILY_NOISE, 3, "rings", "density", "size spread", { "drift", "ring flow", "spin" } },
 
-	{ "Distort: Interference", FAMILY_DISTORT, 0, "wavelength", "sources", "source distance" },
-	{ "Distort: Ripple", FAMILY_DISTORT, 1, "wavelength", "falloff", "sharpness" },
-	{ "Distort: Wave Lines", FAMILY_DISTORT, 2, "frequency", "cross wave", "vertical change" },
-	{ "Distort: Resonance", FAMILY_DISTORT, 5, "band width", "crossing", "left calm" },
-	{ "Distort: Moire Rings", FAMILY_DISTORT, 3, "spacing", "ring ratio", "orbit" },
-	{ "Distort: Chladni", FAMILY_DISTORT, 4, "complexity", "levels", "warp" },
+	{ "Distort: Interference", FAMILY_DISTORT, 0, "wavelength", "sources", "source distance", { "waves", "wavelength breath", "drift" } },
+	{ "Distort: Ripple", FAMILY_DISTORT, 1, "wavelength", "falloff", "sharpness", { "ripples", "wander", "drift" } },
+	{ "Distort: Wave Lines", FAMILY_DISTORT, 2, "frequency", "cross wave", "vertical change", { "waves", "drift", "swell" } },
+	{ "Distort: Resonance", FAMILY_DISTORT, 5, "band width", "crossing", "left calm", { "drift", "band wander", "crossing pulse" } },
+	{ "Distort: Moire Rings", FAMILY_DISTORT, 3, "spacing", "ring ratio", "orbit", { "orbit", "ring flow", "spacing breath" } },
+	{ "Distort: Chladni", FAMILY_DISTORT, 4, "complexity", "levels", "warp", { "morph", "plate spin", "warp wobble" } },
 };
 const int kPatternCount = sizeof( kPatterns ) / sizeof( kPatterns[ 0 ] );
 const int kMaxSeed      = 99;
 
 // Automatic hits; 0 means only the Hit button fires one.
 const double kHitBars[]       = { 0.0, 1.0 / 4, 1.0 / 2, 1.0, 2.0, 4.0, 8.0 };
-const char* const kMotionNames[] = { "Endless", "Sway" };
+const char* const kLoopNames[] = { "Endless", "Sway" };
 const char* const kHitNames[] = { "Off", "1 Beat", "2 Beats", "1 Bar", "2 Bars", "4 Bars", "8 Bars" };
 const int kHitCount           = 7;
 
@@ -252,7 +256,7 @@ PatternBook::PatternBook()
 	SetParamInfo( PID_SEED, "Seed", FF_TYPE_INTEGER, static_cast< float >( seed ) );
 	SetParamRange( PID_SEED, 0.0f, static_cast< float >( kMaxSeed ) );
 	SetParamInfo( PID_SCALE, "Scale", FF_TYPE_STANDARD, scale );
-	SetParamInfo( PID_FORM, "Form", FF_TYPE_STANDARD, form );
+	SetParamInfo( PID_FORM, "Form 1", FF_TYPE_STANDARD, form );
 	SetParamInfo( PID_FORM2, "Form 2", FF_TYPE_STANDARD, form2 );
 	SetParamInfo( PID_FORM3, "Form 3", FF_TYPE_STANDARD, form3 );
 	SetParamInfo( PID_WIDTH, "Line Width", FF_TYPE_STANDARD, width );
@@ -262,9 +266,12 @@ PatternBook::PatternBook()
 
 	SetParamInfo( PID_SPEED, "Speed", FF_TYPE_STANDARD, speed );
 	SetParamInfo( PID_AMOUNT, "Amount", FF_TYPE_STANDARD, amount );
-	SetOptionParamInfo( PID_MOTION, "Motion", 2, static_cast< float >( motionMode ) );
+	SetParamInfo( PID_MOTION1, "Motion 1", FF_TYPE_STANDARD, motions[ 0 ] );
+	SetParamInfo( PID_MOTION2, "Motion 2", FF_TYPE_STANDARD, motions[ 1 ] );
+	SetParamInfo( PID_MOTION3, "Motion 3", FF_TYPE_STANDARD, motions[ 2 ] );
+	SetOptionParamInfo( PID_LOOP, "Loop", 2, static_cast< float >( loopMode ) );
 	for( int i = 0; i < 2; ++i )
-		SetParamElementInfo( PID_MOTION, i, kMotionNames[ i ], static_cast< float >( i ) );
+		SetParamElementInfo( PID_LOOP, i, kLoopNames[ i ], static_cast< float >( i ) );
 	SetParamInfo( PID_HIT, "Hit", FF_TYPE_EVENT, false );
 	SetParamInfo( PID_HIT_AMOUNT, "Hit Amount", FF_TYPE_STANDARD, hitAmount );
 	SetOptionParamInfo( PID_HIT_EVERY, "Hit Every", kHitCount, static_cast< float >( hitEvery ) );
@@ -366,10 +373,11 @@ void PatternBook::UpdateClock( float deltaTime )
 	// Amount changes the pace without making the pattern jump.
 	double bars   = std::max( barPosition - before, 0.0 );
 	double cycles = bars * CyclesPerBar( speed );
-	double moved  = cycles * amount;
 	phase         = std::fmod( phase + cycles, kWrap );
-	motion        = std::fmod( motion + moved, kWrap );
-	// The terrain camera flies 3 units per cycle towards where Rotation points.
+	for( int m = 0; m < 3; ++m )
+		travel[ m ] = std::fmod( travel[ m ] + cycles * amount * motions[ m ], kWrap );
+	double moved = cycles * amount * motions[ 0 ];
+	// The terrain camera flies 3 units per cycle towards where Rotation points (Motion 1).
 	double heading = RotationRadians( rotation );
 	flyX           = std::fmod( flyX + 3.0 * moved * std::sin( heading ), 4096.0 );
 	flyZ           = std::fmod( flyZ + 3.0 * moved * std::cos( heading ), 4096.0 );
@@ -437,9 +445,15 @@ FFResult PatternBook::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	shader.Set( "uWidth", WidthPixels( width ) );
 	shader.Set( "uRotation", RotationRadians( rotation ) );
 	shader.Set( "uPhase", static_cast< float >( phase ) );
-	shader.Set( "uMotion", static_cast< float >( motion ) );
-	shader.Set( "uAmount", amount );
-	shader.Set( "uSway", motionMode );
+	// Motion 1 drives what each pattern did before (uMotion, uAmount); Motion 2
+	// and 3 drive extra movements, each as a strength and a running travel.
+	shader.Set( "uMotion", static_cast< float >( travel[ 0 ] ) );
+	shader.Set( "uAmount", amount * motions[ 0 ] );
+	shader.Set( "uStrength2", amount * motions[ 1 ] );
+	shader.Set( "uStrength3", amount * motions[ 2 ] );
+	shader.Set( "uTravel2", static_cast< float >( travel[ 1 ] ) );
+	shader.Set( "uTravel3", static_cast< float >( travel[ 2 ] ) );
+	shader.Set( "uSway", loopMode );
 	shader.Set( "uHitCount", static_cast< float >( hitCount ) );
 	shader.Set( "uHitAge", static_cast< float >( hitAge ) );
 	shader.Set( "uHitAmount", hitAmount );
@@ -461,15 +475,19 @@ FFResult PatternBook::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 
 void PatternBook::DrawChords()
 {
-	// Endless: the inner circle keeps turning against the outer one, so the
-	// figure rolls round itself. Sway: the factor swings up and back once per
-	// cycle, morphing the figure. A hit pushes the factor on and lets it slide back.
-	double k      = ChordFactor( form );
+	// Motion 1, Endless: the inner circle keeps turning against the outer one,
+	// so the figure rolls round itself; Sway: the factor swings up and back.
+	// Motion 2 swings the factor in either mode; Motion 3 makes the inner
+	// circle breathe. A hit pushes the factor on and lets it slide back.
+	const double tau = 6.283185307179586;
+	double swing  = 0.5 - 0.5 * std::cos( tau * phase );
+	double k      = ChordFactor( form ) + amount * motions[ 1 ] * 1.5 * swing;
 	double offset = 0.0;
-	if( motionMode == 1 )
-		k += amount * 1.5 * ( 0.5 - 0.5 * std::cos( 6.283185307179586 * phase ) );
+	if( loopMode == 1 )
+		k += amount * motions[ 0 ] * 1.5 * swing;
 	else
-		offset = 6.283185307179586 * std::fmod( motion, 1.0 );
+		offset = tau * std::fmod( travel[ 0 ], 1.0 );
+	float inner = ChordInner( form2 ) * ( 1.0f + 0.35f * amount * motions[ 2 ] * static_cast< float >( std::sin( tau * phase ) ) );
 	if( hitCount > 0.5 )
 		k += 2.0 * hitAmount * std::exp( -1.5 * hitAge );
 	int lines = ChordLines( CellsValue( scale ) );
@@ -480,7 +498,7 @@ void PatternBook::DrawChords()
 	chordShader.Set( "uCount", static_cast< float >( lines ) );
 	chordShader.Set( "uFactor", static_cast< float >( k ) );
 	chordShader.Set( "uOffset", static_cast< float >( offset ) );
-	chordShader.Set( "uInner", ChordInner( form2 ) );
+	chordShader.Set( "uInner", inner );
 	// Form 3: below the middle the chords start from only part of the outer
 	// circle; above it the inner circle is turned against the outer one.
 	chordShader.Set( "uSpan", 0.15f + 0.85f * std::min( form3 * 2.0f, 1.0f ) );
@@ -522,7 +540,10 @@ FFResult PatternBook::SetFloatParameter( unsigned int index, float value )
 	case PID_ROTATION: rotation = value; break;
 	case PID_SPEED: speed = value; break;
 	case PID_AMOUNT: amount = value; break;
-	case PID_MOTION: motionMode = ClampIndex( value, 2 ); break;
+	case PID_MOTION1: motions[ 0 ] = value; break;
+	case PID_MOTION2: motions[ 1 ] = value; break;
+	case PID_MOTION3: motions[ 2 ] = value; break;
+	case PID_LOOP: loopMode = ClampIndex( value, 2 ); break;
 	case PID_HIT:
 		if( value > 0.5f && !hitPressed )
 			hitPending = true;
@@ -554,7 +575,10 @@ float PatternBook::GetFloatParameter( unsigned int index )
 	case PID_ROTATION: return rotation;
 	case PID_SPEED: return speed;
 	case PID_AMOUNT: return amount;
-	case PID_MOTION: return static_cast< float >( motionMode );
+	case PID_MOTION1: return motions[ 0 ];
+	case PID_MOTION2: return motions[ 1 ];
+	case PID_MOTION3: return motions[ 2 ];
+	case PID_LOOP: return static_cast< float >( loopMode );
 	case PID_HIT: return hitPressed ? 1.0f : 0.0f;
 	case PID_HIT_AMOUNT: return hitAmount;
 	case PID_HIT_EVERY: return static_cast< float >( hitEvery );
@@ -595,6 +619,14 @@ char* PatternBook::GetParameterDisplay( unsigned int index )
 		return Display( "1 per %.1f bars", 1.0f / perBar );
 	}
 	case PID_AMOUNT: return Display( "%.0f%%", amount * 100.0f );
+	case PID_MOTION1:
+	case PID_MOTION2:
+	case PID_MOTION3:
+	{
+		int m = static_cast< int >( index - PID_MOTION1 );
+		snprintf( gDisplay, sizeof( gDisplay ), "%s %.0f%%", kPatterns[ pattern ].motion[ m ], motions[ m ] * 100.0f );
+		return gDisplay;
+	}
 	case PID_HIT_AMOUNT: return Display( "%.0f%%", hitAmount * 100.0f );
 	default: return CFFGLPlugin::GetParameterDisplay( index );
 	}
