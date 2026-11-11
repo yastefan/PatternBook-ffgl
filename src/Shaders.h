@@ -333,6 +333,11 @@ float RadialDots( vec2 p )
 	return Fill( length( p - centre ) - dotR, gPixel );
 }
 
+)"
+// MSVC limits a single string literal to about 16 KB, so the shader is split
+// into adjacent literals (joined by the compiler, up to 64 KB). Keep each piece
+// below 16 KB when adding code; split again at another section if needed.
+R"(
 // ---------------------------------------------------------------- isometric
 
 // Pointy-top hexagon cells with circumradius 1. Returns the offset from the
@@ -497,6 +502,8 @@ float IsoHeights( vec2 q, float pxCell )
 	return ink;
 }
 
+)"
+R"(
 // ---------------------------------------------------------------- distortion
 
 // A square mesh pushed around by waves from two to five slowly orbiting
