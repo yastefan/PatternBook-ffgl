@@ -1,0 +1,120 @@
+name: Build
+
+# Pull requests:      build only, to check the change before merging.
+# Pushes to main:     build and replace the rolling "latest-build" pre-release.
+# Tags v<version>:    build and publish a versioned release.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: >
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15
+
+      - name: Build
+        run: cmake --build build -j 4
+
+      # Ad-hoc signature: required for arm64 and enough for Resolume to load the bundle.
+      - name: Sign
+        run: codesign --force --deep --sign - build/PatternBook.bundle
+
+      - name: Package
+        run: |
+          mkdir -p dist/licenses
+          cp -R build/PatternBook.bundle dist/
+          cp LICENSE dist/LICENSE.txt
+          cp external/ffgl/LICENSE.md dist/licenses/FFGL-SDK-LICENSE.md
+          ditto -c -k dist PatternBook-macOS.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PatternBook-macOS
+          path: PatternBook-macOS.zip
+
+  windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Configure
+        run: cmake -S . -B build -A x64
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Package
+        run: |
+          New-Item -ItemType Directory -Force dist/licenses | Out-Null
+          Copy-Item build/Release/PatternBook.dll dist/
+          Copy-Item LICENSE dist/LICENSE.txt
+          Copy-Item external/ffgl/LICENSE.md dist/licenses/FFGL-SDK-LICENSE.md
+          Copy-Item external/ffgl/deps/glew-2.1.0/LICENSE.txt dist/licenses/GLEW-LICENSE.txt
+          Compress-Archive -Path dist/* -DestinationPath PatternBook-Windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PatternBook-Windows
+          path: PatternBook-Windows.zip
+
+  release:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # Two quick merges must not race while replacing the rolling release.
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: Publish rolling build from main
+        if: github.ref == 'refs/heads/main'
+        run: |
+          gh release delete latest-build --yes --cleanup-tag || true
+          gh release create latest-build PatternBook-macOS.zip PatternBook-Windows.zip \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Latest build from main" \
+            --notes "Automatic build of ${GITHUB_SHA::7} from main. Not a versioned release; it is replaced on every merge."
+
+      - name: Check that the tag matches the project version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(sed -n 's/^project(PatternBook VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match project version $version in CMakeLists.txt"
+            exit 1
+          fi
+
+      - name: Publish versioned release
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          gh release create "$GITHUB_REF_NAME" PatternBook-macOS.zip PatternBook-Windows.zip \
+            --verify-tag \
+            --generate-notes \
+            --title "PatternBook $GITHUB_REF_NAME"
