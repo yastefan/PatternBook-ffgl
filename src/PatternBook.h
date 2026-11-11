@@ -23,9 +23,11 @@ public:
 private:
 	void UpdateClock( float deltaTime );
 	void UpdateCamera( float deltaTime );
+	void DrawChords();
 
 	static const int kFamilyCount = 5;
 	ffglex::FFGLShader shaders[ kFamilyCount ];// one program per pattern family
+	ffglex::FFGLShader chordShader;// Radial: Chords, drawn as lines
 	GLuint emptyVAO  = 0;// core profile needs a bound VAO even without attributes
 	GLuint heightMap = 0;// tileable landscape for Noise: Terrain
 
@@ -34,11 +36,13 @@ private:
 	int seed       = 0;
 	float scale    = 0.43f;
 	float form     = 0.5f;
+	float form2    = 0.5f;
 	float width    = 0.25f;
 	float rotation = 0.5f;
 	float speed    = 0.35f;
 	float amount   = 0.5f;
 	float hitAmount = 0.5f;
+	int motionMode  = 0;// 0 endless, 1 sway
 	int hitEvery   = 0;// 0 = only the Hit button
 	bool hitPressed = false;
 	bool hitPending = false;

@@ -3,7 +3,7 @@
 **Minimal generative patterns for Resolume, animated to the beat.**
 
 PatternBook draws calm, graphic patterns (Truchet tiles, spirals, broken
-rings, isometric cubes, noise landscapes, flow lines, warped meshes,
+rings, string-art chords, isometric cubes, noise landscapes, flow lines, warped meshes,
 resonating line fields, moiré, Chladni figures) in two colours and moves them in
 time with Resolume's BPM. A **Hit**, by hand or on the beat, sends a wave out
 from the centre that turns tiles, flips cubes or pushes the mesh.
@@ -11,9 +11,9 @@ from the centre that turns tiles, flips cubes or pushes the mesh.
 PatternBook is a native FFGL source plugin for **Resolume Arena and Avenue** on
 **macOS and Windows**.
 
-![All 23 patterns](docs/images/patterns.png)
+![All 24 patterns](docs/images/patterns.png)
 
-- 23 patterns in five families: Grid, Radial, Isometric, Noise and Distortion
+- 24 patterns in five families: Grid, Radial, Isometric, Noise and Distortion
 - Line width in pixels, so lines stay equally sharp at any output resolution
 - Animation speed locked to Resolume's BPM, from still to one cycle per beat
 - **Hit** button and automatic hits on the beat, with their own strength
@@ -51,7 +51,7 @@ Requirements: Resolume Arena or Avenue 7 and a graphics card with OpenGL 4.1.
 | Family | Patterns | Animation | Hit |
 |---|---|---|---|
 | Grid | Arcs, Diagonals, Squares, Dots | tiles make quarter turns, squares turn in a wave, dots breathe | tiles turn as the wave passes |
-| Radial | Spiral, Broken Rings, Rays, Dot Rings | spiral and rings spin, rays grow and shrink, dot rings slide past each other | twist, gaps open, rays and dots swell |
+| Radial | Spiral, Broken Rings, Rays, Dot Rings, Chords | spiral and rings spin, rays grow and shrink, dot rings slide past each other, chord figures (cardioid, nephroid, stars) morph as their factor sways | twist, gaps open, rays and dots swell, chords jump ahead and slide back |
 | Isometric | Cubes, Wire Cubes, Hatched Cubes, Noise Heights, Lattice | cubes shrink and grow in a wave, wire cubes flip inside out, columns of cubes rise and fall like terraces, lattice weaves | cubes pop, wire cubes flip, columns surge |
 | Noise | Flow Lines, Contours, Terrain, Circles | streams bend around drifting eddies, contour map evolves, flight through the valleys of a wireframe landscape (Form raises the mountains), scattered rings drift and breathe | streams twist, a ridge rises, mountains jump, circles swell |
 | Distortion | Interference, Ripple, Wave Lines, Resonance, Moire Rings, Chladni | mesh pushed by waves from 2–5 sources (set by Seed), ripples, fabric, a band of lines that fan out and cross where three sine generators resonate, orbiting ring centres, Chladni figures morph from mode to mode | a ring of displacement runs outwards, Resonance swells sideways from the middle, Chladni moves to the next mode |
@@ -62,10 +62,11 @@ Requirements: Resolume Arena or Avenue 7 and a graphics card with OpenGL 4.1.
 
 | Parameter | What it does |
 |---|---|
-| **Pattern** | Which of the 23 patterns to draw, grouped by family. |
+| **Pattern** | Which of the 24 patterns to draw, grouped by family. |
 | **Seed** | Picks a different random layout (0–99). |
-| **Scale** | Cells across the frame height, from 2 to 48. |
-| **Form** | Pattern-specific: ribbon width, number of lines or arms, gap size, dot size, hatching, height, turbulence, wavelength, complexity. The display says which. |
+| **Scale** | Cells across the frame height, from 2 to 48. In Radial: Chords, the number of lines (20 to 480). |
+| **Form** | Pattern-specific: ribbon width, number of lines or arms, gap size, dot size, hatching, height, turbulence, wavelength, complexity, chord factor. The display says which. |
+| **Form 2** | A second pattern-specific control; so far the inner radius of Radial: Chords. Shows “-” where a pattern doesn't use it. |
 | **Line Width** | In pixels, from 0.5 to 24. |
 | **Rotation** | Turns the whole pattern. In Noise: Terrain it turns the camera instead, so the flight pans and heads off in a new direction. |
 
@@ -75,6 +76,7 @@ Requirements: Resolume Arena or Avenue 7 and a graphics card with OpenGL 4.1.
 |---|---|
 | **Speed** | How fast the animation runs, locked to Resolume's BPM: from stopped to one cycle per beat. The display shows the cycle length in bars. Moving it changes the pace without a jump. |
 | **Amount** | How strong the animation is: how many tiles turn, how far things swing, how fast things spin or fly. 0 holds the pattern still. |
+| **Motion** | **Endless** (default) keeps everything moving forward without ever swinging back: chords roll round themselves, squares keep turning, dashes run out along the rays, the lattice glides. **Sway** swings these back and forth instead (chords then morph through their factor, rays grow and shrink). All other patterns already move endlessly and ignore it. |
 | **Hit** | Sends a wave out from the centre. |
 | **Hit Amount** | How strong a hit is: how far its wave pushes, how high the terrain jumps, and what share of tiles and cubes it turns. 0 switches hits off. |
 | **Hit Every** | Fires Hit automatically every beat up to every 8 bars. |
@@ -132,12 +134,16 @@ field is bent. Noise: Terrain ray-marches a tileable height map that the
 plugin builds once at start-up, which is far cheaper than computing noise at
 every step. The landscape sinks into a valley along the flight line, and the
 plugin reads the same map on the CPU to keep the camera just above the valley
-floor, so it flies through the mountains rather than over them. The clock, rate and hits run on the CPU
+floor, so it flies through the mountains rather than over them. Radial: Chords
+is the one pattern drawn as geometry: each chord is a thin quad generated in
+the vertex shader, because testing hundreds of long lines per pixel would be
+far too slow. The clock, rate and hits run on the CPU
 ([src/PatternBook.cpp](src/PatternBook.cpp)).
 
 The patterns are original implementations of well-known generative techniques
 (Truchet tiles, Archimedean spirals, isometric tilings, gradient and value
-noise, stream functions, interference, moiré and Chladni plate modes)
+noise, stream functions, interference, moiré, Chladni plate modes and
+modular-multiplication chords)
 and are not taken from any pattern collection.
 
 ## License
