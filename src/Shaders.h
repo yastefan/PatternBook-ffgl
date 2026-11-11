@@ -35,11 +35,13 @@ uniform int uVariant;    // pattern within the family
 uniform float uSeed;
 uniform float uCells;    // cells across the frame height
 uniform float uForm;     // pattern-specific, 0..1
+uniform float uForm2;    // a second pattern-specific control, 0..1
 uniform float uWidth;    // line width in pixels
 uniform float uRotation; // radians
 uniform float uPhase;
 uniform float uMotion;
 uniform float uAmount;   // 0..1
+uniform int uSway;       // 0: endless motion, 1: sway back and forth (Motion switch)
 uniform float uHitCount;
 uniform float uHitAge;
 uniform float uHitAmount; // 0..1
@@ -241,8 +243,12 @@ float GridSquares( vec2 q, float px )
 	vec2 cell  = floor( q );
 	vec2 f     = q - cell - 0.5;
 	float dist = length( cell + 0.5 ) * 2.0 / uCells;
-	float wave = sin( TAU * uPhase - dot( cell, vec2( 0.35, 0.25 ) ) );
-	float a    = ( uAmount * wave + HitTurns( dist, cell ) ) * 0.5 * PI;
+	float turn;
+	if( uSway == 1 )// turn back and forth in a diagonal wave
+		turn = uAmount * sin( TAU * uPhase - dot( cell, vec2( 0.35, 0.25 ) ) );
+	else// keep turning, each cell a little behind its neighbour; a square looks the same after a quarter turn
+		turn = 2.0 * uMotion - 0.12 * ( cell.x + cell.y );
+	float a    = ( turn + HitTurns( dist, cell ) ) * 0.5 * PI;
 	float size = mix( 0.1, 0.35, uForm );// at most 0.35, so a turned square stays inside its cell
 	vec2 d     = abs( Rot( f, a ) ) - size;
 	float sd   = length( max( d, 0.0 ) ) + min( max( d.x, d.y ), 0.0 );
@@ -305,11 +311,23 @@ float RadialRays( vec2 p )
 	float da     = ( u - i ) / n * TAU;// angle to the nearest ray
 	float h      = Hash( vec2( mod( i, n ), 1.0 ) );
 	float inner  = mix( 0.05, 0.7, uForm );
-	float grow   = mix( 1.0, 0.5 + 0.5 * sin( TAU * ( uPhase + h ) ), uAmount );
-	float outer  = inner + ( 1.7 - inner ) * grow + 0.4 * HitPulse( r );
 	float onRay  = r * cos( da );
 	float beside = abs( r * sin( da ) );
-	float past   = max( max( inner - onRay, onRay - outer ), 0.0 );
+	if( uSway == 1 )
+	{
+		// Each ray grows and shrinks at its own phase.
+		float grow  = mix( 1.0, 0.5 + 0.5 * sin( TAU * ( uPhase + h ) ), uAmount );
+		float outer = inner + ( 1.7 - inner ) * grow + 0.4 * HitPulse( r );
+		float past  = max( max( inner - onRay, onRay - outer ), 0.0 );
+		return Line( length( vec2( beside, past ) ), gPixel );
+	}
+	// Endless: dashes run outwards along every ray; Amount opens the gaps.
+	float outer  = 1.7 + 0.4 * HitPulse( r );
+	float period = 0.35;
+	float duty   = 1.0 - 0.7 * uAmount;
+	float w      = fract( ( onRay - inner ) / period - 2.0 * uMotion - h ) * period;// position within one dash period
+	float gap    = w > duty * period ? min( w - duty * period, period - w ) : 0.0;// distance to the nearest dash
+	float past   = max( max( max( inner - onRay, onRay - outer ), 0.0 ), gap );
 	return Line( length( vec2( beside, past ) ), gPixel );
 }
 
@@ -435,7 +453,10 @@ float IsoLattice( vec2 q )
 		vec2 n    = vec2( cos( ang ), sin( ang ) );
 		vec2 t    = vec2( -n.y, n.x );
 		float g   = dot( q, n ) * 1.1547005;// lines one cell apart
-		g += uAmount * 0.5 * sin( TAU * uPhase + fi * TAU / 3.0 );
+		if( uSway == 1 )
+			g += uAmount * 0.5 * sin( TAU * uPhase + fi * TAU / 3.0 );
+		else// the three families glide on endlessly, the middle one against the others
+			g += uMotion * ( i == 1 ? -1.0 : 1.0 );
 		g += uForm * 0.35 * sin( dot( q, t ) * 1.3 + TAU * uPhase + fi );
 		g += HitPulse( length( q ) * 2.0 / uCells ) * 0.5;
 		ink = max( ink, Lines( g ) );
@@ -777,7 +798,8 @@ void main()
 		if( uVariant == 0 ) ink = RadialSpiral( p );
 		else if( uVariant == 1 ) ink = RadialRings( p );
 		else if( uVariant == 2 ) ink = RadialRays( p );
-		else ink = RadialDots( p );
+		else if( uVariant == 3 ) ink = RadialDots( p );
+		// Variant 4 (Chords) is drawn as geometry over this paper; see kChordVS.
 	}
 #elif FAMILY == 2
 	{
@@ -804,6 +826,67 @@ void main()
 #endif
 
 	fragColor = uInk * ink + uPaper * ( 1.0 - ink );
+}
+)";
+// Radial: Chords, drawn as geometry because hundreds of long lines would be
+// far too slow to test per pixel. Point i at angle a on the outer circle
+// joins angle k * a on an inner circle; each line is a thin quad (two
+// triangles, six vertices) made from gl_VertexID alone, so no buffers are
+// needed. The plugin computes k with its animation (ChordFactor in
+// PatternBook.cpp) and draws the paper first with the radial family shader.
+static const char kChordVS[] = R"(#version 410 core
+uniform vec4 uViewport;  // x, y, width, height in pixels
+uniform float uCount;    // number of lines
+uniform float uFactor;   // k
+uniform float uOffset;   // turn of the inner circle against the outer one, radians
+uniform float uInner;    // inner radius relative to the outer one
+uniform float uRotation; // radians
+uniform float uWidth;    // line width in pixels
+out float vAcross;       // distance from the line's centre, in pixels
+
+const float TAU = 6.28318530717959;
+const float R   = 0.85; // outer radius in frame units (frame height spans -1..1)
+
+vec2 Rot( vec2 v, float a )
+{
+	float c = cos( a ), s = sin( a );
+	return vec2( c * v.x - s * v.y, s * v.x + c * v.y );
+}
+
+void main()
+{
+	int line   = gl_VertexID / 6;
+	int corner = gl_VertexID % 6;
+	float a    = TAU * float( line ) / uCount;
+	float b    = uFactor * a + uOffset;
+	vec2 from  = Rot( R * vec2( cos( a ), sin( a ) ), uRotation );
+	vec2 to    = Rot( uInner * R * vec2( cos( b ), sin( b ) ), uRotation );
+
+	// Corners of the quad: (along the line 0..1, side -1..1).
+	const vec2 corners[ 6 ] = vec2[ 6 ]( vec2( 0.0, -1.0 ), vec2( 1.0, -1.0 ), vec2( 1.0, 1.0 ),
+										 vec2( 0.0, -1.0 ), vec2( 1.0, 1.0 ), vec2( 0.0, 1.0 ) );
+	vec2 c        = corners[ corner ];
+	float pixel   = 2.0 / uViewport.w;
+	float reach   = 0.5 * uWidth + 1.0;// half width plus one pixel for anti-aliasing
+	vec2 dir      = to - from;
+	float len     = length( dir );
+	dir           = len > 1e-6 ? dir / len : vec2( 1.0, 0.0 );
+	vec2 normal   = vec2( -dir.y, dir.x );
+	vec2 pos      = mix( from, to, c.x ) + dir * ( c.x * 2.0 - 1.0 ) * reach * pixel * 0.5 + normal * c.y * reach * pixel;
+	vAcross       = c.y * reach;
+	float aspect  = uViewport.z / uViewport.w;
+	gl_Position   = vec4( pos.x / aspect, pos.y, 0.0, 1.0 );
+}
+)";
+
+static const char kChordFS[] = R"(#version 410 core
+uniform float uWidth;
+uniform vec4 uInk; // premultiplied
+in float vAcross;
+out vec4 fragColor;
+void main()
+{
+	fragColor = uInk * clamp( 0.5 * uWidth - abs( vAcross ) + 0.5, 0.0, 1.0 );
 }
 )";
 }// namespace pattern

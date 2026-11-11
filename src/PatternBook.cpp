@@ -33,11 +33,13 @@ enum ParamID
 	PID_SEED,
 	PID_SCALE,
 	PID_FORM,
+	PID_FORM2,
 	PID_WIDTH,
 	PID_ROTATION,
 
 	PID_SPEED,
 	PID_AMOUNT,
+	PID_MOTION,
 	PID_HIT,
 	PID_HIT_AMOUNT,
 	PID_HIT_EVERY,
@@ -64,13 +66,15 @@ enum Family
 };
 
 // The Pattern menu, grouped by family. Each entry names the shader's family
-// and variant, and what Form does in it (for the parameter display).
+// and variant, and what Form and Form 2 do in it (for the parameter display;
+// no Form 2 text means the pattern ignores it).
 struct PatternEntry
 {
 	const char* name;
 	int family;
 	int variant;
 	const char* form;
+	const char* form2 = nullptr;
 };
 const PatternEntry kPatterns[] = {
 	{ "Grid: Arcs", FAMILY_GRID, 0, "ribbon" },
@@ -82,6 +86,7 @@ const PatternEntry kPatterns[] = {
 	{ "Radial: Broken Rings", FAMILY_RADIAL, 1, "gaps" },
 	{ "Radial: Rays", FAMILY_RADIAL, 2, "inner radius" },
 	{ "Radial: Dot Rings", FAMILY_RADIAL, 3, "dot size" },
+	{ "Radial: Chords", FAMILY_RADIAL, 4, "factor", "inner radius" },
 
 	{ "Iso: Cubes", FAMILY_ISO, 0, "scatter" },
 	{ "Iso: Wire Cubes", FAMILY_ISO, 1, "inner cube" },
@@ -106,6 +111,7 @@ const int kMaxSeed      = 99;
 
 // Automatic hits; 0 means only the Hit button fires one.
 const double kHitBars[]       = { 0.0, 1.0 / 4, 1.0 / 2, 1.0, 2.0, 4.0, 8.0 };
+const char* const kMotionNames[] = { "Endless", "Sway" };
 const char* const kHitNames[] = { "Off", "1 Beat", "2 Beats", "1 Bar", "2 Bars", "4 Bars", "8 Bars" };
 const int kHitCount           = 7;
 
@@ -207,6 +213,11 @@ float SampleHeightMap( const std::vector< float >& map, double u, double v )
 	return top + ( bottom - top ) * ty;
 }
 
+// Radial: Chords, drawn by kChordVS in Shaders.h.
+float ChordFactor( float v ) { return 10.0f * std::pow( v, 2.3219f ); }// 2 (a cardioid) at the middle
+float ChordInner( float v ) { return 0.2f + 1.6f * v; }                 // 1 (the same circle) at the middle
+int ChordLines( float cells ) { return std::min( std::max( static_cast< int >( std::lround( cells * 10.0f ) ), 20 ), 480 ); }
+
 float TerrainAmplitude( float form ) { return 0.1f + 4.0f * form * form; }// as in NoiseTerrain
 
 // Height of the valley floor right under the flight line at (x, z); matches
@@ -240,6 +251,7 @@ PatternBook::PatternBook()
 	SetParamRange( PID_SEED, 0.0f, static_cast< float >( kMaxSeed ) );
 	SetParamInfo( PID_SCALE, "Scale", FF_TYPE_STANDARD, scale );
 	SetParamInfo( PID_FORM, "Form", FF_TYPE_STANDARD, form );
+	SetParamInfo( PID_FORM2, "Form 2", FF_TYPE_STANDARD, form2 );
 	SetParamInfo( PID_WIDTH, "Line Width", FF_TYPE_STANDARD, width );
 	SetParamInfo( PID_ROTATION, "Rotation", FF_TYPE_STANDARD, rotation );
 	for( unsigned int id = PID_PATTERN; id <= PID_ROTATION; ++id )
@@ -247,6 +259,9 @@ PatternBook::PatternBook()
 
 	SetParamInfo( PID_SPEED, "Speed", FF_TYPE_STANDARD, speed );
 	SetParamInfo( PID_AMOUNT, "Amount", FF_TYPE_STANDARD, amount );
+	SetOptionParamInfo( PID_MOTION, "Motion", 2, static_cast< float >( motionMode ) );
+	for( int i = 0; i < 2; ++i )
+		SetParamElementInfo( PID_MOTION, i, kMotionNames[ i ], static_cast< float >( i ) );
 	SetParamInfo( PID_HIT, "Hit", FF_TYPE_EVENT, false );
 	SetParamInfo( PID_HIT_AMOUNT, "Hit Amount", FF_TYPE_STANDARD, hitAmount );
 	SetOptionParamInfo( PID_HIT_EVERY, "Hit Every", kHitCount, static_cast< float >( hitEvery ) );
@@ -291,6 +306,12 @@ FFResult PatternBook::InitGL( const FFGLViewportStruct* vp )
 			return FF_FAIL;
 		}
 	}
+	if( !chordShader.Compile( pattern::kChordVS, pattern::kChordFS ) )
+	{
+		FFGLLog::LogToHost( "PatternBook: chord shader failed to compile" );
+		DeInitGL();
+		return FF_FAIL;
+	}
 	glGenVertexArrays( 1, &emptyVAO );
 
 	heightValues = MakeHeightMap();
@@ -310,6 +331,7 @@ FFResult PatternBook::DeInitGL()
 {
 	for( FFGLShader& shader : shaders )
 		shader.FreeGLResources();
+	chordShader.FreeGLResources();
 	if( emptyVAO )
 		glDeleteVertexArrays( 1, &emptyVAO );
 	emptyVAO = 0;
@@ -407,11 +429,13 @@ FFResult PatternBook::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	shader.Set( "uSeed", static_cast< float >( seed ) );
 	shader.Set( "uCells", CellsValue( scale ) );
 	shader.Set( "uForm", form );
+	shader.Set( "uForm2", form2 );
 	shader.Set( "uWidth", WidthPixels( width ) );
 	shader.Set( "uRotation", RotationRadians( rotation ) );
 	shader.Set( "uPhase", static_cast< float >( phase ) );
 	shader.Set( "uMotion", static_cast< float >( motion ) );
 	shader.Set( "uAmount", amount );
+	shader.Set( "uSway", motionMode );
 	shader.Set( "uHitCount", static_cast< float >( hitCount ) );
 	shader.Set( "uHitAge", static_cast< float >( hitAge ) );
 	shader.Set( "uHitAmount", hitAmount );
@@ -425,7 +449,44 @@ FFResult PatternBook::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 
 	ScopedVAOBinding vaoBinding( emptyVAO );
 	glDrawArrays( GL_TRIANGLES, 0, 3 );
+
+	if( entry.family == FAMILY_RADIAL && entry.variant == 4 )
+		DrawChords();
 	return FF_SUCCESS;
+}
+
+void PatternBook::DrawChords()
+{
+	// Endless: the inner circle keeps turning against the outer one, so the
+	// figure rolls round itself. Sway: the factor swings up and back once per
+	// cycle, morphing the figure. A hit pushes the factor on and lets it slide back.
+	double k      = ChordFactor( form );
+	double offset = 0.0;
+	if( motionMode == 1 )
+		k += amount * 1.5 * ( 0.5 - 0.5 * std::cos( 6.283185307179586 * phase ) );
+	else
+		offset = 6.283185307179586 * std::fmod( motion, 1.0 );
+	if( hitCount > 0.5 )
+		k += 2.0 * hitAmount * std::exp( -1.5 * hitAge );
+	int lines = ChordLines( CellsValue( scale ) );
+
+	ScopedShaderBinding shaderBinding( chordShader.GetGLID() );
+	chordShader.Set( "uViewport", static_cast< float >( currentViewport.x ), static_cast< float >( currentViewport.y ),
+					 static_cast< float >( currentViewport.width ), static_cast< float >( currentViewport.height ) );
+	chordShader.Set( "uCount", static_cast< float >( lines ) );
+	chordShader.Set( "uFactor", static_cast< float >( k ) );
+	chordShader.Set( "uOffset", static_cast< float >( offset ) );
+	chordShader.Set( "uInner", ChordInner( form2 ) );
+	chordShader.Set( "uRotation", RotationRadians( rotation ) );
+	chordShader.Set( "uWidth", WidthPixels( width ) );
+	SetColor( chordShader, "uInk", ink );
+
+	// Premultiplied "over" blending, restored to the host's default afterwards.
+	glEnable( GL_BLEND );
+	glBlendFunc( GL_ONE, GL_ONE_MINUS_SRC_ALPHA );
+	glDrawArrays( GL_TRIANGLES, 0, lines * 6 );
+	glBlendFunc( GL_ONE, GL_ZERO );
+	glDisable( GL_BLEND );
 }
 
 FFResult PatternBook::SetFloatParameter( unsigned int index, float value )
@@ -447,10 +508,12 @@ FFResult PatternBook::SetFloatParameter( unsigned int index, float value )
 	case PID_SEED: seed = ClampIndex( value, kMaxSeed + 1 ); break;
 	case PID_SCALE: scale = value; break;
 	case PID_FORM: form = value; break;
+	case PID_FORM2: form2 = value; break;
 	case PID_WIDTH: width = value; break;
 	case PID_ROTATION: rotation = value; break;
 	case PID_SPEED: speed = value; break;
 	case PID_AMOUNT: amount = value; break;
+	case PID_MOTION: motionMode = ClampIndex( value, 2 ); break;
 	case PID_HIT:
 		if( value > 0.5f && !hitPressed )
 			hitPending = true;
@@ -476,10 +539,12 @@ float PatternBook::GetFloatParameter( unsigned int index )
 	case PID_SEED: return static_cast< float >( seed );
 	case PID_SCALE: return scale;
 	case PID_FORM: return form;
+	case PID_FORM2: return form2;
 	case PID_WIDTH: return width;
 	case PID_ROTATION: return rotation;
 	case PID_SPEED: return speed;
 	case PID_AMOUNT: return amount;
+	case PID_MOTION: return static_cast< float >( motionMode );
 	case PID_HIT: return hitPressed ? 1.0f : 0.0f;
 	case PID_HIT_AMOUNT: return hitAmount;
 	case PID_HIT_EVERY: return static_cast< float >( hitEvery );
@@ -491,9 +556,21 @@ char* PatternBook::GetParameterDisplay( unsigned int index )
 {
 	switch( index )
 	{
-	case PID_SCALE: return Display( "%.1f cells", CellsValue( scale ) );
+	case PID_SCALE:
+		if( kPatterns[ pattern ].family == FAMILY_RADIAL && kPatterns[ pattern ].variant == 4 )
+			return Display( "%.0f lines", static_cast< float >( ChordLines( CellsValue( scale ) ) ) );
+		return Display( "%.1f cells", CellsValue( scale ) );
 	case PID_FORM:
+		if( kPatterns[ pattern ].family == FAMILY_RADIAL && kPatterns[ pattern ].variant == 4 )
+			return Display( "factor %.2f", ChordFactor( form ) );
 		snprintf( gDisplay, sizeof( gDisplay ), "%s %.0f%%", kPatterns[ pattern ].form, form * 100.0f );
+		return gDisplay;
+	case PID_FORM2:
+		if( !kPatterns[ pattern ].form2 )
+			return const_cast< char* >( "-" );
+		if( kPatterns[ pattern ].family == FAMILY_RADIAL && kPatterns[ pattern ].variant == 4 )
+			return Display( "inner %.2f", ChordInner( form2 ) );
+		snprintf( gDisplay, sizeof( gDisplay ), "%s %.0f%%", kPatterns[ pattern ].form2, form2 * 100.0f );
 		return gDisplay;
 	case PID_WIDTH: return Display( "%.1f px", WidthPixels( width ) );
 	case PID_ROTATION: return Display( "%.0f deg", RotationRadians( rotation ) * 57.2957795f );
