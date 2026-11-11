@@ -1,0 +1,21 @@
+# Build output
+build/
+build-*/
+out/
+cmake-build-*/
+
+# Harness renders
+renders/
+
+# IDEs
+.vs/
+.vscode/
+.idea/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.user
+*.suo
+
+# OS
+.DS_Store
+Thumbs.db
