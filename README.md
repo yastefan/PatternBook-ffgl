@@ -65,10 +65,38 @@ Requirements: Resolume Arena or Avenue 7 and a graphics card with OpenGL 4.1.
 | **Pattern** | Which of the 24 patterns to draw, grouped by family. |
 | **Seed** | Picks a different random layout (0–99). |
 | **Scale** | Cells across the frame height, from 2 to 48. In Radial: Chords, the number of lines (20 to 480). |
-| **Form** | Pattern-specific: ribbon width, number of lines or arms, gap size, dot size, hatching, height, turbulence, wavelength, complexity, chord factor. The display says which. |
-| **Form 2** | A second pattern-specific control; so far the inner radius of Radial: Chords. Shows “-” where a pattern doesn't use it. |
+| **Form**, **Form 2**, **Form 3** | Three pattern-specific controls; every pattern uses all three, and the display names what each does (see the table below). |
 | **Line Width** | In pixels, from 0.5 to 24. |
 | **Rotation** | Turns the whole pattern. In Noise: Terrain it turns the camera instead, so the flight pans and heads off in a new direction. |
+
+#### What Form, Form 2 and Form 3 do
+
+| Pattern | Form | Form 2 | Form 3 |
+|---|---|---|---|
+| Grid: Arcs | ribbon | lines | density |
+| Grid: Diagonals | lines | density | direction |
+| Grid: Squares | size | nested | roundness |
+| Grid: Dots | dot size | wavelength | ring |
+| Radial: Spiral | arms | tightness | hole |
+| Radial: Broken Rings | gaps | segments | speed spread |
+| Radial: Rays | inner radius | count | lengths |
+| Radial: Dot Rings | dot size | density | slide |
+| Radial: Chords | factor | inner radius | span |
+| Iso: Cubes | scatter | contrast | size |
+| Iso: Wire Cubes | inner cube | outline | size |
+| Iso: Hatched Cubes | hatching | top hatching | size |
+| Iso: Noise Heights | height | feature size | terraces |
+| Iso: Lattice | weave | weave length | families |
+| Noise: Flow Lines | turbulence | feature size | detail |
+| Noise: Contours | levels | feature size | detail |
+| Noise: Terrain | height | valley width | view distance |
+| Noise: Circles | rings | density | size spread |
+| Distort: Interference | wavelength | sources | source distance |
+| Distort: Ripple | wavelength | falloff | sharpness |
+| Distort: Wave Lines | frequency | cross wave | vertical change |
+| Distort: Resonance | band width | crossing | left calm |
+| Distort: Moire Rings | spacing | ring ratio | orbit |
+| Distort: Chladni | complexity | levels | warp |
 
 ### Animation
 

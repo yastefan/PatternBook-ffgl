@@ -36,6 +36,7 @@ uniform float uSeed;
 uniform float uCells;    // cells across the frame height
 uniform float uForm;     // pattern-specific, 0..1
 uniform float uForm2;    // a second pattern-specific control, 0..1
+uniform float uForm3;    // a third pattern-specific control, 0..1
 uniform float uWidth;    // line width in pixels
 uniform float uRotation; // radians
 uniform float uPhase;
@@ -166,6 +167,19 @@ float Fbm( vec3 p, int octaves )
 	return sum * 2.0;
 }
 
+// Fbm with a chosen loss per octave: low keeps it smooth, high adds fine detail.
+float FbmGain( vec3 p, int octaves, float gain )
+{
+	float sum = 0.0, amp = 0.5;
+	for( int i = 0; i < octaves; ++i )
+	{
+		sum += amp * Noise( p );
+		p = vec3( mat2( 1.6, 1.2, -1.2, 1.6 ) * p.xy, p.z * 1.4 );
+		amp *= gain;
+	}
+	return sum * 2.0;// like Fbm at a gain of one half
+}
+
 float Fbm( vec2 p, int octaves )
 {
 	float sum = 0.0, amp = 0.5;
@@ -211,30 +225,55 @@ float CellTurns( vec2 cell )
 
 // ---------------------------------------------------------------- grid
 
-// Quarter-circle arcs (kind 0) or diagonals (kind 1) in each cell, turned by
-// a hash, by the animation and by hits.
-float GridTiles( vec2 q, float px, int kind )
+// Distance from s to the nearest of m evenly spaced values in -band..band
+// (just 0 for a single line).
+float NearestOf( float s, float band, float m )
 {
-	vec2 cell   = floor( q );
-	vec2 f      = q - cell - 0.5;
-	float dist  = length( cell + 0.5 ) * 2.0 / uCells;
-	float turns = step( 0.5, Hash( cell ) ) + CellTurns( cell ) + HitTurns( dist, cell );
-	f           = Rot( f, turns * 0.5 * PI );
+	if( m < 1.5 || band < 1e-4 )
+		return abs( s );
+	float step = 2.0 * band / ( m - 1.0 );
+	float i    = clamp( round( ( s + band ) / step ), 0.0, m - 1.0 );
+	return abs( s - ( -band + i * step ) );
+}
 
+// Distance to the lines of one tile, before anything is turned.
+float TileDistance( vec2 f, int kind )
+{
 	if( kind == 0 )
 	{
-		// Form widens the single arc into a ribbon with two edges.
+		// Arcs round two opposite corners. Form widens each into a ribbon,
+		// Form 2 sets how many lines run along it (1 to 4).
 		float band = uForm * 0.2;
-		float r1   = abs( length( f - 0.5 ) - 0.5 );
-		float r2   = abs( length( f + 0.5 ) - 0.5 );
-		float d    = min( abs( r1 - band ), abs( r2 - band ) );
-		return Line( d, px );
+		float m    = 1.0 + floor( uForm2 * 3.99 );
+		return min( NearestOf( length( f - 0.5 ) - 0.5, band, m ), NearestOf( length( f + 0.5 ) - 0.5, band, m ) );
 	}
-	// Form adds parallel lines; their spacing divides the cell edge, so
-	// neighbouring tiles always meet.
+	// Diagonals: Form adds parallel lines; their spacing divides the cell
+	// edge, so neighbouring tiles always meet.
 	float k = 1.0 + floor( uForm * 4.99 );
 	float t = ( f.x - f.y ) * k;
-	return Line( abs( t - round( t ) ) / k * 0.70710678, px );
+	return abs( t - round( t ) ) / k * 0.70710678;
+}
+
+// Quarter-circle arcs (kind 0) or diagonals (kind 1) in each cell, turned by
+// a hash, by the animation and by hits. A "density" control (Form 3 for
+// arcs, Form 2 for diagonals) leaves tiles empty above the middle and adds
+// the crossing tile below it; Form 3 of the diagonals biases their direction.
+float GridTiles( vec2 q, float px, int kind )
+{
+	vec2 cell     = floor( q );
+	vec2 f        = q - cell - 0.5;
+	float dist    = length( cell + 0.5 ) * 2.0 / uCells;
+	float density = kind == 0 ? uForm3 : uForm2;
+	float pick    = Hash( cell + 41.0 );
+	if( pick < ( density - 0.5 ) * 1.6 )
+		return 0.0;// left empty
+	float bias  = kind == 1 ? uForm3 : 0.5;
+	float turns = step( bias, Hash( cell ) ) + CellTurns( cell ) + HitTurns( dist, cell );
+	f           = Rot( f, turns * 0.5 * PI );
+	float d     = TileDistance( f, kind );
+	if( pick < ( 0.5 - density ) * 2.0 )
+		d = min( d, TileDistance( Rot( f, 0.5 * PI ), kind ) );// the crossing tile on top
+	return Line( d, px );
 }
 
 // Square outlines turning in a diagonal wave.
@@ -250,9 +289,21 @@ float GridSquares( vec2 q, float px )
 		turn = 2.0 * uMotion - 0.12 * ( cell.x + cell.y );
 	float a    = ( turn + HitTurns( dist, cell ) ) * 0.5 * PI;
 	float size = mix( 0.1, 0.35, uForm );// at most 0.35, so a turned square stays inside its cell
-	vec2 d     = abs( Rot( f, a ) ) - size;
-	float sd   = length( max( d, 0.0 ) ) + min( max( d.x, d.y ), 0.0 );
-	return Line( abs( sd ), px );
+	float nest = 1.0 + floor( uForm2 * 3.99 );// Form 2: nested squares, 1 to 4
+	float round_ = uForm3 * size;// Form 3: rounds the corners, up to a circle
+	vec2 g     = abs( Rot( f, a ) );
+	float d    = 1e9;
+	for( int i = 0; i < 4; ++i )
+	{
+		if( float( i ) >= nest )
+			break;
+		float sz  = size * ( 1.0 - float( i ) / nest );
+		float rr  = round_ * sz / size;
+		vec2 e    = g - ( sz - rr );
+		float sd  = length( max( e, 0.0 ) ) + min( max( e.x, e.y ), 0.0 ) - rr;
+		d         = min( d, abs( sd ) );
+	}
+	return Line( d, px );
 }
 
 // Halftone dots breathing in a wave from the centre.
@@ -261,11 +312,16 @@ float GridDots( vec2 q, float px )
 	vec2 cell  = floor( q );
 	vec2 f     = q - cell - 0.5;
 	float dist = length( cell + 0.5 ) * 2.0 / uCells;
-	float wave = 0.5 + 0.5 * sin( TAU * uPhase - dist * 6.0 + ( Hash( cell ) - 0.5 ) * 1.5 );
+	// Form 2 sets the wavelength of the breathing, Form 3 hollows the dots into rings.
+	float wave = 0.5 + 0.5 * sin( TAU * uPhase - dist * mix( 1.0, 12.0, uForm2 ) + ( Hash( cell ) - 0.5 ) * 1.5 );
 	float r    = 0.48 * mix( 0.25, 1.0, uForm ) * mix( 1.0, wave, uAmount ) + 0.2 * HitPulse( dist );
-	return Fill( length( f ) - min( r, 0.5 ), px );
+	r          = min( r, 0.5 );
+	float hole = r * 0.85 * uForm3;
+	return Fill( max( length( f ) - r, hole - length( f ) ), px );
 }
 
+)"
+R"(
 // ---------------------------------------------------------------- radial
 
 // Archimedean spiral with Form arms, turning steadily.
@@ -276,10 +332,17 @@ float RadialSpiral( vec2 p )
 	float n     = 1.0 + floor( uForm * 7.99 );
 	float s     = 2.0 / uCells;// distance between neighbouring turns
 	float spin  = uMotion * TAU + HitPulse( r ) * 1.5;
-	float g     = r / s - n * ( a + spin ) / TAU;
+	// Form 2 bends the even spacing: tighter towards the outside below the
+	// middle, tighter towards the centre above it.
+	float power = mix( 0.6, 1.6, uForm2 );
+	float rp    = pow( max( r, 1e-4 ), power );
+	float g     = rp / s - n * ( a + spin ) / TAU;
 	// Analytic gradient: dFdx would see the jump where atan wraps.
-	float grad  = length( vec2( 1.0 / s, n / ( TAU * max( r, 1e-4 ) ) ) );
-	return Line( abs( g - round( g ) ) / grad, gPixel );
+	float grad  = length( vec2( power * rp / max( r, 1e-4 ) / s, n / ( TAU * max( r, 1e-4 ) ) ) );
+	// Form 3 opens a hole in the middle.
+	float hole  = uForm3 * 0.8;
+	float d     = max( abs( g - round( g ) ) / grad, hole - r );
+	return Line( d, gPixel );
 }
 
 // Concentric rings broken into arcs; every ring spins at its own speed and direction.
@@ -290,8 +353,9 @@ float RadialRings( vec2 p )
 	float a    = atan( p.y, p.x );
 	float j    = max( round( r / s ), 1.0 );
 	float dir  = Hash( vec2( j, 9.0 ) ) < 0.5 ? -1.0 : 1.0;
-	float spin = dir * ( 0.2 + 0.8 * Hash( vec2( j, 3.0 ) ) ) * uMotion * TAU * 0.25;
-	float segs = 1.0 + floor( Hash( vec2( j, 5.0 ) ) * 5.0 );
+	float spread = min( uForm3 * 1.6, 1.0 );// Form 3: how differently the rings spin
+	float spin = dir * ( 1.0 - spread + spread * Hash( vec2( j, 3.0 ) ) ) * uMotion * TAU * 0.25;
+	float segs = 1.0 + floor( Hash( vec2( j, 5.0 ) ) * mix( 1.0, 10.0, uForm2 ) );// Form 2: up to this many arcs per ring
 	float u    = fract( ( a + spin ) / TAU * segs );
 	float gap  = clamp( uForm * 0.6 + HitPulse( r ) * 0.4, 0.0, 0.95 );
 	// Distance past the end of the arc, measured along the ring.
@@ -305,24 +369,25 @@ float RadialRays( vec2 p )
 {
 	float r      = length( p );
 	float a      = atan( p.y, p.x );
-	float n      = max( round( uCells * 3.0 ), 3.0 );
+	float n      = max( round( uCells * 3.0 * mix( 0.25, 1.75, uForm2 ) ), 3.0 );// Form 2: more or fewer rays
 	float u      = a / TAU * n + uMotion * 0.5;
 	float i      = round( u );
 	float da     = ( u - i ) / n * TAU;// angle to the nearest ray
 	float h      = Hash( vec2( mod( i, n ), 1.0 ) );
 	float inner  = mix( 0.05, 0.7, uForm );
+	float longest = 1.7 - uForm3 * Hash( vec2( mod( i, n ), 7.0 ) ) * ( 1.7 - inner - 0.1 );// Form 3: rays of random lengths
 	float onRay  = r * cos( da );
 	float beside = abs( r * sin( da ) );
 	if( uSway == 1 )
 	{
 		// Each ray grows and shrinks at its own phase.
 		float grow  = mix( 1.0, 0.5 + 0.5 * sin( TAU * ( uPhase + h ) ), uAmount );
-		float outer = inner + ( 1.7 - inner ) * grow + 0.4 * HitPulse( r );
+		float outer = inner + ( longest - inner ) * grow + 0.4 * HitPulse( r );
 		float past  = max( max( inner - onRay, onRay - outer ), 0.0 );
 		return Line( length( vec2( beside, past ) ), gPixel );
 	}
 	// Endless: dashes run outwards along every ray; Amount opens the gaps.
-	float outer  = 1.7 + 0.4 * HitPulse( r );
+	float outer  = longest + 0.4 * HitPulse( r );
 	float period = 0.35;
 	float duty   = 1.0 - 0.7 * uAmount;
 	float w      = fract( ( onRay - inner ) / period - 2.0 * uMotion - h ) * period;// position within one dash period
@@ -342,9 +407,10 @@ float RadialDots( vec2 p )
 	float dotR = s * mix( 0.08, 0.45, uForm ) * ( 1.0 + 0.8 * HitPulse( r ) );
 	if( j < 0.5 )
 		return Fill( r - dotR, gPixel );
-	float count = round( TAU * j );
+	float count = max( round( TAU * j * mix( 0.4, 1.6, uForm2 ) ), 1.0 );// Form 2: dots per ring
 	float dir   = mod( j, 2.0 ) < 0.5 ? 1.0 : -1.0;
-	float spin  = dir * uMotion * TAU * ( 0.1 + 0.9 / j );
+	// Form 3: from all rings turning together to rings sliding against each other.
+	float spin  = uMotion * TAU * mix( 0.3, 2.0 * dir * ( 0.1 + 0.9 / j ), uForm3 );
 	float k     = round( ( a + spin ) / TAU * count );
 	float ca    = k / count * TAU - spin;
 	vec2 centre = j * s * vec2( cos( ca ), sin( ca ) );
@@ -410,21 +476,25 @@ float IsoCubes( vec2 q, float pxCell, int kind )
 		// from above becomes one seen from below.
 		float turns = CellTurns( key ) + HitTurns( dist, key );
 		float a     = turns * PI / 3.0;
-		float d     = min( abs( HexDistance( g ) ), CubeEdges( g, a ) );
+		float size  = mix( 0.5, 1.0, uForm3 );// Form 3: cube size, gaps between smaller cubes
+		vec2 gc     = g / size;
+		// Form 2 fades the hexagon outline in, from just the inner corner to the whole cube.
+		float outline = Line( abs( HexDistance( gc ) ) * size, px ) * clamp( uForm2 * 2.0, 0.0, 1.0 );
+		float d       = CubeEdges( gc, a ) * size;
 		if( uForm > 0.02 )
 		{
 			float inner = mix( 0.15, 0.85, uForm );
-			vec2 gi     = g / inner;
-			d           = min( d, min( abs( HexDistance( gi ) ), CubeEdges( gi, -a ) ) * inner );
+			vec2 gi     = gc / inner;
+			d           = min( d, min( abs( HexDistance( gi ) ), CubeEdges( gi, -a ) ) * inner * size );
 		}
-		return Line( d, px );
+		return max( Line( d, px ), outline );
 	}
 
 	// Solid and hatched cubes shrink and grow in a wave from the centre.
 	// For solid cubes Form scatters the cells' timing.
 	float scatter = kind == 0 ? Hash( key ) * uForm * TAU : 0.0;
 	float wave    = 0.5 + 0.5 * sin( TAU * uPhase - dist * 5.0 + scatter );
-	float scale = 1.0 - 0.75 * uAmount * wave;
+	float scale = mix( 0.5, 1.2, uForm3 ) * ( 1.0 - 0.75 * uAmount * wave );// Form 3: cube size (above 1 they close up)
 	scale       = max( scale * ( 1.0 - 0.5 * HitPulse( dist ) ), 0.05 );
 	vec2 gs     = g / scale;
 	float sd    = HexDistance( gs ) * scale;
@@ -434,7 +504,9 @@ float IsoCubes( vec2 q, float pxCell, int kind )
 	if( kind == 0 )
 	{
 		// Three shades; the edges are drawn in paper colour to keep the faces apart.
-		float shade = face < 0.5 ? 0.35 : ( face < 1.5 ? 1.0 : 0.62 );
+		float shade    = face < 0.5 ? 0.35 : ( face < 1.5 ? 1.0 : 0.62 );
+		float contrast = uForm2 * 2.0;// Form 2: from flat to deep shading
+		shade          = clamp( 1.0 - contrast * ( 1.0 - shade ), 0.0, 1.0 );
 		return Fill( sd, px ) * shade * ( 1.0 - edges );
 	}
 
@@ -442,7 +514,15 @@ float IsoCubes( vec2 q, float pxCell, int kind )
 	// face stays empty, the right face gets twice the lines of the left.
 	float density = ( 2.0 + floor( uForm * 6.0 ) ) * ( face < 0.5 ? 2.0 : 1.0 );
 	float t       = gs.x * density;
-	float hatch   = face > 0.5 && face < 1.5 ? 0.0 : Line( abs( t - round( t ) ) / density * scale, px );
+	float hatch   = Line( abs( t - round( t ) ) / density * scale, px );
+	if( face > 0.5 && face < 1.5 )
+	{
+		// Form 2: the top face stays empty below 25 %, then gets hatching
+		// along one of its edges, getting denser.
+		float topDensity = floor( uForm2 * 8.0 ) - 1.0;
+		float u          = dot( gs, vec2( 0.8660254, 0.5 ) ) * max( topDensity, 1.0 );
+		hatch            = topDensity < 0.5 ? 0.0 : Line( abs( u - round( u ) ) / max( topDensity, 1.0 ) * scale, px );
+	}
 	return Fill( sd, px ) * max( hatch, edges );
 }
 
@@ -462,9 +542,11 @@ float IsoLattice( vec2 q )
 			g += uAmount * 0.5 * sin( TAU * uPhase + fi * TAU / 3.0 );
 		else// the three families glide on endlessly, the middle one against the others
 			g += uMotion * ( i == 1 ? -1.0 : 1.0 );
-		g += uForm * 0.35 * sin( dot( q, t ) * 1.3 + TAU * uPhase + fi );
+		g += uForm * 0.35 * sin( dot( q, t ) * mix( 0.3, 2.3, uForm2 ) + TAU * uPhase + fi );// Form 2: weave length
 		g += HitPulse( length( q ) * 2.0 / uCells ) * 0.5;
-		ink = max( ink, Lines( g ) );
+		// Form 3 fades the families in one by one: one, two, then all three.
+		float weight = i == 0 ? 1.0 : ( i == 1 ? smoothstep( 0.1, 0.3, uForm3 ) : smoothstep( 0.35, 0.55, uForm3 ) );
+		ink = max( ink, Lines( g ) * weight );
 	}
 	return ink;
 }
@@ -474,10 +556,10 @@ float ColumnHeight( vec2 b, float hmax )
 {
 	float dist = length( b ) / 1.7320508 * 2.0 / uCells;
 	vec2 drift = vec2( uMotion * 0.3, -uMotion * 0.21 );
-	float n    = clamp( 0.5 + 0.9 * Noise( b * 0.2 + drift ), 0.0, 1.0 ) * hmax;
-	// Whole cubes, so the heights read as terraces; the step between two
-	// heights is quick but smooth.
-	float h = floor( n ) + smoothstep( 0.75, 1.0, fract( n ) );
+	float n    = clamp( 0.5 + 0.9 * Noise( b * mix( 0.06, 0.4, uForm2 ) + drift ), 0.0, 1.0 ) * hmax;// Form 2: feature size
+	// Form 3 from smooth slopes to whole cubes, so the heights read as terraces.
+	float edge = mix( 0.0, 0.75, uForm3 * 2.0 > 1.0 ? 1.0 : uForm3 * 2.0 );
+	float h    = floor( n ) + smoothstep( edge, 1.0, fract( n ) );
 	return max( h + 1.5 * HitPulse( dist ), 0.05 );
 }
 
@@ -532,7 +614,7 @@ R"(
 float DistortInterference( vec2 q )
 {
 	float wavelength = mix( 2.0, 10.0, uForm );
-	int sources      = 2 + int( Hash( vec2( 3.1, 7.7 ) ) * 3.99 );
+	int sources      = 2 + int( uForm2 * 3.99 );// Form 2: 2 to 5 sources
 	vec2 d           = vec2( 0.0 );
 	for( int i = 0; i < 5; ++i )
 	{
@@ -541,7 +623,7 @@ float DistortInterference( vec2 q )
 		float fi  = float( i );
 		float dir = Hash( vec2( fi, 2.0 ) ) < 0.5 ? -1.0 : 1.0;
 		float ang = fi * TAU / float( sources ) + Hash( vec2( fi, 4.0 ) ) + uMotion * TAU * 0.15 * dir;
-		vec2 c    = vec2( cos( ang ), sin( ang ) ) * uCells * mix( 0.15, 0.45, Hash( vec2( fi, 6.0 ) ) );
+		vec2 c    = vec2( cos( ang ), sin( ang ) ) * uCells * mix( 0.02, 0.6, uForm3 ) * mix( 0.7, 1.3, Hash( vec2( fi, 6.0 ) ) );// Form 3: distance from the centre
 		vec2 v    = q - c;
 		float r   = length( v );
 		// Faded in near the source, where the push direction is undefined.
@@ -557,7 +639,10 @@ float DistortRipple( vec2 q )
 	float wavelength = mix( 1.5, 8.0, uForm );
 	float r          = length( q );
 	vec2 dir         = q / max( r, 1e-3 );
-	float push       = uAmount * 0.8 * sin( TAU * ( r / wavelength - uPhase ) );
+	// Form 3 sharpens the wave from soft swells to steep fronts; Form 2 lets it fade with distance.
+	float wave       = sin( TAU * ( r / wavelength - uPhase ) );
+	wave             = sign( wave ) * pow( abs( wave ), mix( 2.0, 0.25, uForm3 ) );
+	float push       = uAmount * 0.8 * wave * exp( -r * 2.0 / uCells * 2.0 * uForm2 * uForm2 );
 	push += HitPulse( r * 2.0 / uCells ) * 1.2;
 	// Calm the centre, where the push direction is undefined.
 	vec2 w = q + dir * push * min( r / wavelength, 1.0 );
@@ -569,8 +654,9 @@ float DistortWaves( vec2 q )
 {
 	float k = mix( 0.15, 1.2, uForm );
 	float g = q.y;
-	g += uAmount * 0.8 * sin( q.x * k + TAU * uPhase ) * cos( q.y * k * 0.5 - TAU * uPhase * 0.5 );
-	g += uAmount * 0.3 * sin( q.x * k * 2.3 - q.y * k * 0.7 - TAU * uPhase );
+	// Form 3: how much the waves change from line to line; Form 2: a second, crossing wave.
+	g += uAmount * 0.8 * sin( q.x * k + TAU * uPhase ) * cos( q.y * k * uForm3 - TAU * uPhase * 0.5 );
+	g += uAmount * 0.6 * uForm2 * sin( q.x * k * 2.3 - q.y * k * 0.7 - TAU * uPhase );
 	g += HitPulse( length( q ) * 2.0 / uCells ) * 0.8;
 	return Lines( g );
 }
@@ -579,11 +665,12 @@ float DistortWaves( vec2 q )
 float DistortMoire( vec2 q )
 {
 	float sep  = uForm * uCells * 0.3;
-	vec2 orbit = uAmount * 2.0 * vec2( cos( TAU * uPhase ), sin( TAU * uPhase ) );
+	vec2 orbit = uAmount * mix( 0.0, 4.0, uForm3 ) * vec2( cos( TAU * uPhase ), sin( TAU * uPhase ) );// Form 3: orbit size
 	vec2 c1    = vec2( -sep, 0.0 ) + orbit;
 	vec2 c2    = vec2( sep, 0.0 ) - orbit;
 	float hit  = HitPulse( length( q ) * 2.0 / uCells ) * 0.5;
-	return max( Lines( length( q - c1 ) + hit ), Lines( length( q - c2 ) - hit ) );
+	float ratio = mix( 0.7, 1.3, uForm2 );// Form 2: ring spacing of the second set
+	return max( Lines( length( q - c1 ) + hit ), Lines( length( q - c2 ) / ratio - hit ) );
 }
 
 // One Chladni figure: the still lines of a square plate vibrating in mode (n, m).
@@ -601,13 +688,20 @@ float ChladniField( vec2 u, float k )
 float DistortChladni( vec2 p )
 {
 	vec2 u   = p * uCells / 10.0;
+	// Form 3 warps the plate, bending the straight lines.
+	float warp = ( uForm3 - 0.5 ) * 0.5;
+	u += warp * vec2( sin( u.y * 2.3 + 1.0 ), sin( u.x * 1.9 + 2.0 ) );
 	float s  = floor( uPhase ) + smoothstep( 1.0 - uAmount, 1.0, fract( uPhase ) );
 	if( uHitCount > 0.5 && uHitAmount > 0.02 )
 		s += uHitCount - 1.0 + smoothstep( 0.0, 0.6, uHitAge );
 	float a  = floor( s );
 	float t  = smoothstep( 0.0, 1.0, s - a );
 	float f  = mix( ChladniField( u, a ), ChladniField( u, a + 1.0 ), t );
-	return ZeroLine( f );
+	// Form 2 above the middle adds level lines next to the still ones, up to four on each side.
+	float levels = floor( max( uForm2 * 2.0 - 1.0, 0.0 ) * 4.99 );
+	if( levels < 0.5 )
+		return ZeroLine( f );
+	return Lines( f * ( levels + 1.0 ) * 0.5 );
 }
 
 // Many horizontal lines, each bent by the same few sine generators but with
@@ -624,12 +718,13 @@ float DistortResonance( vec2 p )
 	// The swing grows from the left edge, so the lines leave the left side
 	// almost calm and tangle further right.
 	float aspect = uViewport.z / uViewport.w;
-	amp *= 0.2 + 0.8 * smoothstep( -aspect, 0.3, p.x );
+	float calm = min( uForm3 * 1.6, 1.0 );// Form 3: how calm the left side stays
+	amp *= 1.0 - calm + calm * smoothstep( -aspect, 0.3, p.x );
 
 	// Three generators; Seed picks their frequencies and how fast the phase
 	// shifts from line to line.
 	vec3 freq  = mix( vec3( 1.5 ), vec3( 6.0 ), vec3( Hash( vec2( 1.0, 1.0 ) ), Hash( vec2( 2.0, 1.0 ) ), Hash( vec2( 3.0, 1.0 ) ) ) );
-	vec3 shift = mix( vec3( 0.08 ), vec3( 0.5 ), vec3( Hash( vec2( 1.0, 2.0 ) ), Hash( vec2( 2.0, 2.0 ) ), Hash( vec2( 3.0, 2.0 ) ) ) );
+	vec3 shift = mix( 0.2, 1.8, uForm2 ) * mix( vec3( 0.08 ), vec3( 0.5 ), vec3( Hash( vec2( 1.0, 2.0 ) ), Hash( vec2( 2.0, 2.0 ) ), Hash( vec2( 3.0, 2.0 ) ) ) );
 	vec3 drift = TAU * uMotion * vec3( 1.0, -0.7, 0.45 );
 	vec3 weight = vec3( 0.5, 0.3, 0.2 );
 
@@ -674,7 +769,8 @@ float NoiseFlow( vec2 q )
 	float r   = length( q ) * 2.0 / uCells;
 	vec2 s    = Rot( q, HitPulse( r ) * 1.5 );// a hit twists the streams
 	float amp = mix( 0.6, 6.0, uForm );
-	return Lines( s.y + amp * Fbm( vec3( s * 0.09, uMotion * 0.35 ), 3 ) );
+	vec3 at   = vec3( s * mix( 0.03, 0.2, uForm2 ), uMotion * 0.35 );// Form 2: feature size
+	return Lines( s.y + amp * FbmGain( at, 3, mix( 0.15, 0.75, uForm3 ) ) );// Form 3: fine detail
 }
 
 // Topographic contour lines of a drifting noise landscape, every fifth one heavier.
@@ -682,7 +778,7 @@ float NoiseContours( vec2 q )
 {
 	float levels = mix( 3.0, 16.0, uForm );
 	float r      = length( q ) * 2.0 / uCells;
-	float h      = Fbm( vec3( q * 0.07, uMotion * 0.25 ), 3 ) + 0.5 * HitPulse( r );
+	float h      = FbmGain( vec3( q * mix( 0.025, 0.16, uForm2 ), uMotion * 0.25 ), 3, mix( 0.15, 0.75, uForm3 ) ) + 0.5 * HitPulse( r );
 	return IndexLines( h * levels * 2.5 );
 }
 
@@ -697,7 +793,7 @@ float TerrainHeight( vec2 xz, float amp )
 {
 	float h       = amp * textureLod( uHeightMap, xz * 0.55 / 16.0 + uSeed * vec2( 0.37, 0.71 ), 0.0 ).r;
 	vec2 across   = vec2( cos( uRotation ), -sin( uRotation ) );// sideways to the flight
-	float lateral = dot( xz - uCamera.xz, across ) / ( 1.4 + 0.3 * amp );
+	float lateral = dot( xz - uCamera.xz, across ) / ( ( 1.4 + 0.3 * amp ) * mix( 0.3, 2.5, uForm2 ) );// Form 2: valley width
 	return h * ( 1.0 - 0.85 * exp( -lateral * lateral ) );
 }
 
@@ -749,7 +845,7 @@ float NoiseTerrain( vec2 p )
 	float dens = uCells / 3.5;
 	float ink  = max( Lines( pos.x * dens ), Lines( pos.z * dens ) );
 	// Fade into the distance, where steep far-off slopes would only show as fringes.
-	return hit ? ink * exp( -b * 0.13 ) : 0.0;
+	return hit ? ink * exp( -b * mix( 0.35, 0.04, uForm3 ) ) : 0.0;// Form 3: view distance
 }
 
 // Scattered, overlapping circles with concentric rings that drift and breathe.
@@ -764,12 +860,13 @@ float NoiseCircles( vec2 q, float pxCell )
 		for( int x = -1; x <= 1; ++x )
 		{
 			vec2 id = cell + vec2( x, y );
-			if( Hash( id + 5.1 ) > 0.7 )
+			if( Hash( id + 5.1 ) > mix( 0.25, 1.0, uForm2 ) )// Form 2: how many sites hold a circle
 				continue;
 			float h  = Hash( id + 1.3 );
 			vec2 jit = 0.25 * vec2( sin( TAU * ( uMotion * 0.15 + h ) ), cos( TAU * ( uMotion * 0.12 + Hash( id + 2.7 ) ) ) );
 			vec2 c   = ( id + 0.5 + jit ) * S;
-			float R  = S * ( 0.3 + 0.6 * Hash( id + 3.9 ) ) * ( 1.0 + 0.25 * uAmount * sin( TAU * ( uPhase + h ) ) );
+			float spread = uForm3 * 1.1;// Form 3: from equal circles to very different sizes
+			float R  = S * ( 0.6 + spread * ( Hash( id + 3.9 ) - 0.5 ) ) * ( 1.0 + 0.25 * uAmount * sin( TAU * ( uPhase + h ) ) );
 			R        = min( R * ( 1.0 + 0.5 * HitPulse( length( c ) * 2.0 / uCells ) ), 0.95 * S );
 			float rr = length( q - c );
 			float sp = R / rings;
@@ -846,6 +943,8 @@ uniform vec4 uViewport;  // x, y, width, height in pixels
 uniform float uCount;    // number of lines
 uniform float uFactor;   // k
 uniform float uOffset;   // turn of the inner circle against the outer one, radians
+uniform float uSpan;     // share of the outer circle the chords start from
+uniform float uTwist;    // fixed extra turn of the inner circle, radians
 uniform float uInner;    // inner radius relative to the outer one
 uniform float uRotation; // radians
 uniform float uWidth;    // line width in pixels
@@ -864,8 +963,8 @@ void main()
 {
 	int line   = gl_VertexID / 6;
 	int corner = gl_VertexID % 6;
-	float a    = TAU * float( line ) / uCount;
-	float b    = uFactor * a + uOffset;
+	float a    = TAU * uSpan * float( line ) / uCount;
+	float b    = uFactor * a + uOffset + uTwist;
 	vec2 from  = Rot( R * vec2( cos( a ), sin( a ) ), uRotation );
 	vec2 to    = Rot( uInner * R * vec2( cos( b ), sin( b ) ), uRotation );
 
