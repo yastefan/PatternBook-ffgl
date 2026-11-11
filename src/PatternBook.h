@@ -37,6 +37,7 @@ private:
 	float scale    = 0.43f;
 	float form     = 0.5f;
 	float form2    = 0.5f;
+	float form3    = 0.5f;
 	float width    = 0.25f;
 	float rotation = 0.5f;
 	float speed    = 0.35f;

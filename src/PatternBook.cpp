@@ -34,6 +34,7 @@ enum ParamID
 	PID_SCALE,
 	PID_FORM,
 	PID_FORM2,
+	PID_FORM3,
 	PID_WIDTH,
 	PID_ROTATION,
 
@@ -66,45 +67,46 @@ enum Family
 };
 
 // The Pattern menu, grouped by family. Each entry names the shader's family
-// and variant, and what Form and Form 2 do in it (for the parameter display;
-// no Form 2 text means the pattern ignores it).
+// and variant, and what Form, Form 2 and Form 3 do in it (for the parameter
+// display). Every pattern uses all three.
 struct PatternEntry
 {
 	const char* name;
 	int family;
 	int variant;
 	const char* form;
-	const char* form2 = nullptr;
+	const char* form2;
+	const char* form3;
 };
 const PatternEntry kPatterns[] = {
-	{ "Grid: Arcs", FAMILY_GRID, 0, "ribbon" },
-	{ "Grid: Diagonals", FAMILY_GRID, 1, "lines" },
-	{ "Grid: Squares", FAMILY_GRID, 2, "size" },
-	{ "Grid: Dots", FAMILY_GRID, 3, "dot size" },
+	{ "Grid: Arcs", FAMILY_GRID, 0, "ribbon", "lines", "density" },
+	{ "Grid: Diagonals", FAMILY_GRID, 1, "lines", "density", "direction" },
+	{ "Grid: Squares", FAMILY_GRID, 2, "size", "nested", "roundness" },
+	{ "Grid: Dots", FAMILY_GRID, 3, "dot size", "wavelength", "ring" },
 
-	{ "Radial: Spiral", FAMILY_RADIAL, 0, "arms" },
-	{ "Radial: Broken Rings", FAMILY_RADIAL, 1, "gaps" },
-	{ "Radial: Rays", FAMILY_RADIAL, 2, "inner radius" },
-	{ "Radial: Dot Rings", FAMILY_RADIAL, 3, "dot size" },
-	{ "Radial: Chords", FAMILY_RADIAL, 4, "factor", "inner radius" },
+	{ "Radial: Spiral", FAMILY_RADIAL, 0, "arms", "tightness", "hole" },
+	{ "Radial: Broken Rings", FAMILY_RADIAL, 1, "gaps", "segments", "speed spread" },
+	{ "Radial: Rays", FAMILY_RADIAL, 2, "inner radius", "count", "lengths" },
+	{ "Radial: Dot Rings", FAMILY_RADIAL, 3, "dot size", "density", "slide" },
+	{ "Radial: Chords", FAMILY_RADIAL, 4, "factor", "inner radius", "span" },
 
-	{ "Iso: Cubes", FAMILY_ISO, 0, "scatter" },
-	{ "Iso: Wire Cubes", FAMILY_ISO, 1, "inner cube" },
-	{ "Iso: Hatched Cubes", FAMILY_ISO, 2, "hatching" },
-	{ "Iso: Noise Heights", FAMILY_ISO, 4, "height" },
-	{ "Iso: Lattice", FAMILY_ISO, 3, "weave" },
+	{ "Iso: Cubes", FAMILY_ISO, 0, "scatter", "contrast", "size" },
+	{ "Iso: Wire Cubes", FAMILY_ISO, 1, "inner cube", "outline", "size" },
+	{ "Iso: Hatched Cubes", FAMILY_ISO, 2, "hatching", "top hatching", "size" },
+	{ "Iso: Noise Heights", FAMILY_ISO, 4, "height", "feature size", "terraces" },
+	{ "Iso: Lattice", FAMILY_ISO, 3, "weave", "weave length", "families" },
 
-	{ "Noise: Flow Lines", FAMILY_NOISE, 0, "turbulence" },
-	{ "Noise: Contours", FAMILY_NOISE, 1, "levels" },
-	{ "Noise: Terrain", FAMILY_NOISE, 2, "height" },
-	{ "Noise: Circles", FAMILY_NOISE, 3, "rings" },
+	{ "Noise: Flow Lines", FAMILY_NOISE, 0, "turbulence", "feature size", "detail" },
+	{ "Noise: Contours", FAMILY_NOISE, 1, "levels", "feature size", "detail" },
+	{ "Noise: Terrain", FAMILY_NOISE, 2, "height", "valley width", "view distance" },
+	{ "Noise: Circles", FAMILY_NOISE, 3, "rings", "density", "size spread" },
 
-	{ "Distort: Interference", FAMILY_DISTORT, 0, "wavelength" },
-	{ "Distort: Ripple", FAMILY_DISTORT, 1, "wavelength" },
-	{ "Distort: Wave Lines", FAMILY_DISTORT, 2, "frequency" },
-	{ "Distort: Resonance", FAMILY_DISTORT, 5, "band width" },
-	{ "Distort: Moire Rings", FAMILY_DISTORT, 3, "spacing" },
-	{ "Distort: Chladni", FAMILY_DISTORT, 4, "complexity" },
+	{ "Distort: Interference", FAMILY_DISTORT, 0, "wavelength", "sources", "source distance" },
+	{ "Distort: Ripple", FAMILY_DISTORT, 1, "wavelength", "falloff", "sharpness" },
+	{ "Distort: Wave Lines", FAMILY_DISTORT, 2, "frequency", "cross wave", "vertical change" },
+	{ "Distort: Resonance", FAMILY_DISTORT, 5, "band width", "crossing", "left calm" },
+	{ "Distort: Moire Rings", FAMILY_DISTORT, 3, "spacing", "ring ratio", "orbit" },
+	{ "Distort: Chladni", FAMILY_DISTORT, 4, "complexity", "levels", "warp" },
 };
 const int kPatternCount = sizeof( kPatterns ) / sizeof( kPatterns[ 0 ] );
 const int kMaxSeed      = 99;
@@ -252,6 +254,7 @@ PatternBook::PatternBook()
 	SetParamInfo( PID_SCALE, "Scale", FF_TYPE_STANDARD, scale );
 	SetParamInfo( PID_FORM, "Form", FF_TYPE_STANDARD, form );
 	SetParamInfo( PID_FORM2, "Form 2", FF_TYPE_STANDARD, form2 );
+	SetParamInfo( PID_FORM3, "Form 3", FF_TYPE_STANDARD, form3 );
 	SetParamInfo( PID_WIDTH, "Line Width", FF_TYPE_STANDARD, width );
 	SetParamInfo( PID_ROTATION, "Rotation", FF_TYPE_STANDARD, rotation );
 	for( unsigned int id = PID_PATTERN; id <= PID_ROTATION; ++id )
@@ -430,6 +433,7 @@ FFResult PatternBook::ProcessOpenGL( ProcessOpenGLStruct* pGL )
 	shader.Set( "uCells", CellsValue( scale ) );
 	shader.Set( "uForm", form );
 	shader.Set( "uForm2", form2 );
+	shader.Set( "uForm3", form3 );
 	shader.Set( "uWidth", WidthPixels( width ) );
 	shader.Set( "uRotation", RotationRadians( rotation ) );
 	shader.Set( "uPhase", static_cast< float >( phase ) );
@@ -477,6 +481,10 @@ void PatternBook::DrawChords()
 	chordShader.Set( "uFactor", static_cast< float >( k ) );
 	chordShader.Set( "uOffset", static_cast< float >( offset ) );
 	chordShader.Set( "uInner", ChordInner( form2 ) );
+	// Form 3: below the middle the chords start from only part of the outer
+	// circle; above it the inner circle is turned against the outer one.
+	chordShader.Set( "uSpan", 0.15f + 0.85f * std::min( form3 * 2.0f, 1.0f ) );
+	chordShader.Set( "uTwist", std::max( form3 * 2.0f - 1.0f, 0.0f ) * 3.14159265f );
 	chordShader.Set( "uRotation", RotationRadians( rotation ) );
 	chordShader.Set( "uWidth", WidthPixels( width ) );
 	SetColor( chordShader, "uInk", ink );
@@ -509,6 +517,7 @@ FFResult PatternBook::SetFloatParameter( unsigned int index, float value )
 	case PID_SCALE: scale = value; break;
 	case PID_FORM: form = value; break;
 	case PID_FORM2: form2 = value; break;
+	case PID_FORM3: form3 = value; break;
 	case PID_WIDTH: width = value; break;
 	case PID_ROTATION: rotation = value; break;
 	case PID_SPEED: speed = value; break;
@@ -540,6 +549,7 @@ float PatternBook::GetFloatParameter( unsigned int index )
 	case PID_SCALE: return scale;
 	case PID_FORM: return form;
 	case PID_FORM2: return form2;
+	case PID_FORM3: return form3;
 	case PID_WIDTH: return width;
 	case PID_ROTATION: return rotation;
 	case PID_SPEED: return speed;
@@ -566,11 +576,12 @@ char* PatternBook::GetParameterDisplay( unsigned int index )
 		snprintf( gDisplay, sizeof( gDisplay ), "%s %.0f%%", kPatterns[ pattern ].form, form * 100.0f );
 		return gDisplay;
 	case PID_FORM2:
-		if( !kPatterns[ pattern ].form2 )
-			return const_cast< char* >( "-" );
 		if( kPatterns[ pattern ].family == FAMILY_RADIAL && kPatterns[ pattern ].variant == 4 )
 			return Display( "inner %.2f", ChordInner( form2 ) );
 		snprintf( gDisplay, sizeof( gDisplay ), "%s %.0f%%", kPatterns[ pattern ].form2, form2 * 100.0f );
+		return gDisplay;
+	case PID_FORM3:
+		snprintf( gDisplay, sizeof( gDisplay ), "%s %.0f%%", kPatterns[ pattern ].form3, form3 * 100.0f );
 		return gDisplay;
 	case PID_WIDTH: return Display( "%.1f px", WidthPixels( width ) );
 	case PID_ROTATION: return Display( "%.0f deg", RotationRadians( rotation ) * 57.2957795f );
