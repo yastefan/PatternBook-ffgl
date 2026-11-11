@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #pragma once
 #include <FFGLSDK.h>
+#include <vector>
 
 // Resolume source that draws minimal generative patterns (grids, radial
 // figures, isometric cubes, distorted meshes) and animates them in time with
-// the host's tempo. Everything is computed per pixel in one shader, so lines
+// the host's tempo. Everything is computed per pixel in a shader, so lines
 // stay sharp at any output resolution.
 class PatternBook : public CFFGLPlugin
 {
@@ -21,9 +22,12 @@ public:
 
 private:
 	void UpdateClock( float deltaTime );
+	void UpdateCamera( float deltaTime );
 
-	ffglex::FFGLShader shader;
-	GLuint emptyVAO = 0;// core profile needs a bound VAO even without attributes
+	static const int kFamilyCount = 5;
+	ffglex::FFGLShader shaders[ kFamilyCount ];// one program per pattern family
+	GLuint emptyVAO  = 0;// core profile needs a bound VAO even without attributes
+	GLuint heightMap = 0;// tileable landscape for Noise: Terrain
 
 	// Parameters, stored as the host's values.
 	int pattern    = 0;
@@ -32,8 +36,9 @@ private:
 	float form     = 0.5f;
 	float width    = 0.25f;
 	float rotation = 0.5f;
-	int rate       = 3;
+	float speed    = 0.35f;
 	float amount   = 0.5f;
+	float hitAmount = 0.5f;
 	int hitEvery   = 0;// 0 = only the Hit button
 	bool hitPressed = false;
 	bool hitPending = false;
@@ -45,8 +50,12 @@ private:
 	double barPosition  = 0.0;// bars since the plugin started, following the host
 	float lastBarPhase  = -1.0f;
 	bool hostSendsBeats = false;
-	double phase        = 0.0;// animation cycles at the chosen rate
+	double phase        = 0.0;// animation cycles at the chosen speed
 	double motion       = 0.0;// cycles weighted by Amount, for drifts that must not jump when Amount moves
 	double hitCount     = 0.0;
 	double hitAge       = 1000.0;// seconds since the last hit
+	double flyX = 0.0, flyZ = 0.0;// Noise: Terrain camera position, flying where Rotation points
+	float cameraHeight = 0.0f;// glides after the valley floor
+	bool cameraReady   = false;
+	std::vector< float > heightValues;// the terrain height map, kept to steer the camera
 };

@@ -3,21 +3,24 @@
 **Minimal generative patterns for Resolume, animated to the beat.**
 
 PatternBook draws calm, graphic patterns (Truchet tiles, spirals, broken
-rings, isometric cubes, warped meshes, moiré) in two colours and moves them in
+rings, isometric cubes, noise landscapes, flow lines, warped meshes,
+resonating line fields, moiré, Chladni figures) in two colours and moves them in
 time with Resolume's BPM. A **Hit**, by hand or on the beat, sends a wave out
 from the centre that turns tiles, flips cubes or pushes the mesh.
 
 PatternBook is a native FFGL source plugin for **Resolume Arena and Avenue** on
 **macOS and Windows**.
 
-![All 16 patterns](docs/images/patterns.png)
+![All 23 patterns](docs/images/patterns.png)
 
-- 16 patterns in four families: Grid, Radial, Isometric and Distortion
+- 23 patterns in five families: Grid, Radial, Isometric, Noise and Distortion
 - Line width in pixels, so lines stay equally sharp at any output resolution
-- Animation in musical units from 1 beat to 16 bars, locked to Resolume's BPM
-- **Hit** button and automatic hits on the beat
+- Animation speed locked to Resolume's BPM, from still to one cycle per beat
+- **Hit** button and automatic hits on the beat, with their own strength
 - Ink and paper colours, each with alpha, so the paper can be transparent
-- One shader, about 2–4 ms per frame in 1080p on an Intel Iris Plus
+- About 2 ms per frame in 1080p on an Intel Iris Plus for most patterns,
+  up to 8–9 ms for the 3D ones (Noise Heights, Circles, Terrain; Terrain
+  with the highest mountains about 11 ms)
 
 ## Download and install
 
@@ -49,8 +52,9 @@ Requirements: Resolume Arena or Avenue 7 and a graphics card with OpenGL 4.1.
 |---|---|---|---|
 | Grid | Arcs, Diagonals, Squares, Dots | tiles make quarter turns, squares turn in a wave, dots breathe | tiles turn as the wave passes |
 | Radial | Spiral, Broken Rings, Rays, Dot Rings | spiral and rings spin, rays grow and shrink, dot rings slide past each other | twist, gaps open, rays and dots swell |
-| Isometric | Cubes, Wire Cubes, Hatched Cubes, Lattice | cubes shrink and grow in a wave, wire cubes flip inside out, lattice weaves | cubes pop, wire cubes flip |
-| Distortion | Interference, Ripple, Wave Lines, Moire Rings | mesh pushed by waves, ripples, fabric, orbiting ring centres | a ring of displacement runs outwards |
+| Isometric | Cubes, Wire Cubes, Hatched Cubes, Noise Heights, Lattice | cubes shrink and grow in a wave, wire cubes flip inside out, columns of cubes rise and fall like terraces, lattice weaves | cubes pop, wire cubes flip, columns surge |
+| Noise | Flow Lines, Contours, Terrain, Circles | streams bend around drifting eddies, contour map evolves, flight through the valleys of a wireframe landscape (Form raises the mountains), scattered rings drift and breathe | streams twist, a ridge rises, mountains jump, circles swell |
+| Distortion | Interference, Ripple, Wave Lines, Resonance, Moire Rings, Chladni | mesh pushed by waves from 2–5 sources (set by Seed), ripples, fabric, a band of lines that fan out and cross where three sine generators resonate, orbiting ring centres, Chladni figures morph from mode to mode | a ring of displacement runs outwards, Resonance swells sideways from the middle, Chladni moves to the next mode |
 
 ## Parameters
 
@@ -58,20 +62,21 @@ Requirements: Resolume Arena or Avenue 7 and a graphics card with OpenGL 4.1.
 
 | Parameter | What it does |
 |---|---|
-| **Pattern** | Which of the 16 patterns to draw. |
+| **Pattern** | Which of the 23 patterns to draw, grouped by family. |
 | **Seed** | Picks a different random layout (0–99). |
 | **Scale** | Cells across the frame height, from 2 to 48. |
-| **Form** | Pattern-specific: ribbon width, number of lines or arms, gap size, dot size, hatching, wavelength. The display says which. |
+| **Form** | Pattern-specific: ribbon width, number of lines or arms, gap size, dot size, hatching, height, turbulence, wavelength, complexity. The display says which. |
 | **Line Width** | In pixels, from 0.5 to 24. |
-| **Rotation** | Turns the whole pattern. |
+| **Rotation** | Turns the whole pattern. In Noise: Terrain it turns the camera instead, so the flight pans and heads off in a new direction. |
 
 ### Animation
 
 | Parameter | What it does |
 |---|---|
-| **Rate** | Length of one animation cycle, from 1 beat to 16 bars, or Off to freeze. Changing it changes the speed without a jump. |
-| **Amount** | How strong the animation is: how many tiles turn, how far things move, how fast things spin. 0 holds the pattern still. |
+| **Speed** | How fast the animation runs, locked to Resolume's BPM: from stopped to one cycle per beat. The display shows the cycle length in bars. Moving it changes the pace without a jump. |
+| **Amount** | How strong the animation is: how many tiles turn, how far things swing, how fast things spin or fly. 0 holds the pattern still. |
 | **Hit** | Sends a wave out from the centre. |
+| **Hit Amount** | How strong a hit is: how far its wave pushes, how high the terrain jumps, and what share of tiles and cubes it turns. 0 switches hits off. |
 | **Hit Every** | Fires Hit automatically every beat up to every 8 bars. |
 
 ### Ink and Paper
@@ -99,9 +104,10 @@ pull request, publishes **Latest build from main** on every push to `main`,
 and a versioned release for tags `v<version>` that match
 `project(PatternBook VERSION …)`.
 
-Parameter IDs and the order of the Pattern menu follow the menu order. Once a
-version is released, only append, or saved Resolume compositions will mix up
-their values.
+Parameter IDs follow the menu order. Once a version is released, only append
+parameters, or saved Resolume compositions will mix up their values. The
+Pattern menu is a table in [src/PatternBook.cpp](src/PatternBook.cpp) and is
+kept grouped by family.
 
 ### Testing without Resolume (macOS)
 
@@ -117,15 +123,21 @@ an OpenGL 4.1 core context and writes PNG frames:
 
 ### How it works
 
-Everything is drawn in one full-screen fragment shader
-([src/Shaders.h](src/Shaders.h)). Each pattern computes, per pixel, how much
-ink covers it, from distances to lines and shapes anti-aliased over one pixel.
-Warped patterns use screen-space derivatives so lines keep their width however
-the mesh is bent. The clock, rate and hits run on the CPU
+Everything is drawn in a full-screen fragment shader
+([src/Shaders.h](src/Shaders.h)), compiled once per family so each program
+stays small. Each pattern computes, per pixel, how much ink covers it, from
+distances to lines and shapes anti-aliased over one pixel. Warped and noise
+patterns use screen-space derivatives so lines keep their width however the
+field is bent. Noise: Terrain ray-marches a tileable height map that the
+plugin builds once at start-up, which is far cheaper than computing noise at
+every step. The landscape sinks into a valley along the flight line, and the
+plugin reads the same map on the CPU to keep the camera just above the valley
+floor, so it flies through the mountains rather than over them. The clock, rate and hits run on the CPU
 ([src/PatternBook.cpp](src/PatternBook.cpp)).
 
 The patterns are original implementations of well-known generative techniques
-(Truchet tiles, Archimedean spirals, isometric tilings, interference and moiré)
+(Truchet tiles, Archimedean spirals, isometric tilings, gradient and value
+noise, stream functions, interference, moiré and Chladni plate modes)
 and are not taken from any pattern collection.
 
 ## License
