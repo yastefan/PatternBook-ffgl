@@ -65,13 +65,13 @@ Requirements: Resolume Arena or Avenue 7 and a graphics card with OpenGL 4.1.
 | **Pattern** | Which of the 24 patterns to draw, grouped by family. |
 | **Seed** | Picks a different random layout (0–99). |
 | **Scale** | Cells across the frame height, from 2 to 48. In Radial: Chords, the number of lines (20 to 480). |
-| **Form**, **Form 2**, **Form 3** | Three pattern-specific controls; every pattern uses all three, and the display names what each does (see the table below). |
+| **Form 1**, **Form 2**, **Form 3** | Three pattern-specific controls; every pattern uses all three, and the display names what each does (see the table below). |
 | **Line Width** | In pixels, from 0.5 to 24. |
 | **Rotation** | Turns the whole pattern. In Noise: Terrain it turns the camera instead, so the flight pans and heads off in a new direction. |
 
-#### What Form, Form 2 and Form 3 do
+#### What Form 1, Form 2 and Form 3 do
 
-| Pattern | Form | Form 2 | Form 3 |
+| Pattern | Form 1 | Form 2 | Form 3 |
 |---|---|---|---|
 | Grid: Arcs | ribbon | lines | density |
 | Grid: Diagonals | lines | density | direction |
@@ -103,11 +103,41 @@ Requirements: Resolume Arena or Avenue 7 and a graphics card with OpenGL 4.1.
 | Parameter | What it does |
 |---|---|
 | **Speed** | How fast the animation runs, locked to Resolume's BPM: from stopped to one cycle per beat. The display shows the cycle length in bars. Moving it changes the pace without a jump. |
-| **Amount** | How strong the animation is: how many tiles turn, how far things swing, how fast things spin or fly. 0 holds the pattern still. |
-| **Motion** | **Endless** (default) keeps everything moving forward without ever swinging back: chords roll round themselves, squares keep turning, dashes run out along the rays, the lattice glides. **Sway** swings these back and forth instead (chords then morph through their factor, rays grow and shrink). All other patterns already move endlessly and ignore it. |
+| **Amount** | Master for all movement: scales Motion 1, 2 and 3 together. 0 holds the pattern still. |
+| **Motion 1**, **Motion 2**, **Motion 3** | Three movements of their own in every pattern (see the table below), each with its own strength. Motion 1 is the pattern's main movement and starts at 100 %; Motion 2 and 3 add further movements and start at 0. The display names what each does. |
+| **Loop** | Applies to Motion 1. **Endless** (default) keeps everything moving forward without ever swinging back: chords roll round themselves, squares keep turning, dashes run out along the rays, the lattice glides. **Sway** swings these back and forth instead (chords then morph through their factor, rays grow and shrink). All other patterns already move endlessly and ignore it. |
 | **Hit** | Sends a wave out from the centre. |
 | **Hit Amount** | How strong a hit is: how far its wave pushes, how high the terrain jumps, and what share of tiles and cubes it turns. 0 switches hits off. |
 | **Hit Every** | Fires Hit automatically every beat up to every 8 bars. |
+
+#### What Motion 1, Motion 2 and Motion 3 do
+
+| Pattern | Motion 1 | Motion 2 | Motion 3 |
+|---|---|---|---|
+| Grid: Arcs | turns | ribbon breath | drift |
+| Grid: Diagonals | turns | drift | line pulse |
+| Grid: Squares | turning | size breath | drift |
+| Grid: Dots | breathing | drift | spin |
+| Radial: Spiral | spin | breath | arm waves |
+| Radial: Broken Rings | spin | gap breath | ring ripple |
+| Radial: Rays | rays | bend | length pulse |
+| Radial: Dot Rings | slide | dot pulse | ring waves |
+| Radial: Chords | roll | factor swing | inner breath |
+| Iso: Cubes | size wave | light | drift |
+| Iso: Wire Cubes | flips | inner breath | drift |
+| Iso: Hatched Cubes | size wave | hatch slide | drift |
+| Iso: Noise Heights | drift | surge | rain |
+| Iso: Lattice | glide | weave travel | spin |
+| Noise: Flow Lines | evolve | flow | vortex |
+| Noise: Contours | evolve | rise | drift |
+| Noise: Terrain | flight | waves | camera sway |
+| Noise: Circles | drift | ring flow | spin |
+| Distort: Interference | waves | wavelength breath | drift |
+| Distort: Ripple | ripples | wander | drift |
+| Distort: Wave Lines | waves | drift | swell |
+| Distort: Resonance | drift | band wander | crossing pulse |
+| Distort: Moire Rings | orbit | ring flow | spacing breath |
+| Distort: Chladni | morph | plate spin | warp wobble |
 
 ### Ink and Paper
 
