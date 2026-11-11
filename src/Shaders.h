@@ -651,9 +651,10 @@ float DistortInterference( vec2 q )
 		vec2 v    = q - c;
 		float r   = length( v );
 		// Faded in near the source, where the push direction is undefined.
-		d += v / max( r, 1e-3 ) * sin( TAU * ( r / wavelength - uPhase ) ) * min( r / wavelength, 1.0 );
+		d += v / max( r, 1e-3 ) * sin( TAU * ( r / wavelength - 2.0 * uMotion ) ) * min( r / wavelength, 1.0 );// Motion 1 sends the waves out
 	}
-	float swell = uAmount * 0.5 + uStrength2 * 0.4 * ( 0.5 + 0.5 * sin( TAU * uPhase * 0.5 ) );// Motion 2 also swells the push on its own
+	// The push is part of the shape, so the Form controls always show; Motion 2 swells it.
+	float swell = 0.25 + uStrength2 * 0.4 * ( 0.5 + 0.5 * sin( TAU * uPhase * 0.5 ) );
 	vec2 w = q + d * ( swell + HitPulse( length( q ) * 2.0 / uCells ) * 0.6 ) * 3.0 / float( sources );
 	w     += uTravel3 * vec2( 1.0, 0.5 );// Motion 3: the mesh drifts
 	return max( Lines( w.x ), Lines( w.y ) );
@@ -669,9 +670,9 @@ float DistortRipple( vec2 q )
 	float r          = length( v );
 	vec2 dir         = v / max( r, 1e-3 );
 	// Form 3 sharpens the wave from soft swells to steep fronts; Form 2 lets it fade with distance.
-	float wave       = sin( TAU * ( r / wavelength - uPhase ) );
+	float wave       = sin( TAU * ( r / wavelength - 2.0 * uMotion ) );// Motion 1 sends the ripples out
 	wave             = sign( wave ) * pow( abs( wave ), mix( 2.0, 0.25, uForm3 ) );
-	float push       = max( uAmount, uStrength2 ) * 0.8 * wave * exp( -r * 2.0 / uCells * 2.0 * uForm2 * uForm2 );
+	float push       = ( 0.4 + 0.4 * uStrength2 ) * wave * exp( -r * 2.0 / uCells * 2.0 * uForm2 * uForm2 );
 	push += HitPulse( r * 2.0 / uCells ) * 1.2;
 	// Calm the centre, where the push direction is undefined.
 	vec2 w = q + dir * push * min( r / wavelength, 1.0 ) + uTravel3 * vec2( 1.0, 0.5 );// Motion 3: the mesh drifts
@@ -681,13 +682,16 @@ float DistortRipple( vec2 q )
 // Horizontal lines rippling like fabric.
 float DistortWaves( vec2 q )
 {
-	float k = mix( 0.15, 1.2, uForm );
-	float g = q.y;
-	// Form 3: how much the waves change from line to line; Form 2: a second,
-	// crossing wave. Motion 3 swells them; Motion 2 lets the lines drift.
-	float amp = uAmount + 0.8 * uStrength3 * ( 0.5 + 0.5 * sin( TAU * uPhase * 0.5 - q.x * 0.1 ) );
-	g += amp * 0.8 * sin( q.x * k + TAU * uPhase ) * cos( q.y * k * uForm3 - TAU * uPhase * 0.5 );
-	g += amp * 0.6 * uForm2 * sin( q.x * k * 2.3 - q.y * k * 0.7 - TAU * uPhase );
+	// The wave's height is part of its shape, so the Form controls always
+	// show; Motion 1 only moves it (and Amount 0 freezes it).
+	// Form 1: frequency. Form 2: a second, crossing wave. Form 3: how much the
+	// waves change from line to line. Motion 3 swells them; Motion 2 lets the lines drift.
+	float k   = mix( 0.08, 1.6, uForm * uForm );
+	float t   = 2.0 * uMotion;// Motion 1 moves the waves (as fast as before at the default Amount)
+	float amp = 0.9 * ( 1.0 + 0.8 * uStrength3 * ( 0.5 + 0.5 * sin( TAU * uPhase * 0.5 - q.x * 0.1 ) ) );
+	float g   = q.y;
+	g += amp * sin( q.x * k + TAU * t ) * cos( q.y * k * 1.5 * uForm3 - TAU * t * 0.5 );
+	g += amp * 0.9 * uForm2 * sin( q.x * k * 2.3 - q.y * k * 0.7 - TAU * t );
 	g += uTravel2;
 	g += HitPulse( length( q ) * 2.0 / uCells ) * 0.8;
 	return Lines( g );
@@ -747,7 +751,8 @@ float DistortResonance( vec2 p )
 	float spacing = 2.0 / count;
 	float band    = mix( 0.1, 0.9, uForm );// half-height of the vibrating band
 	float centre  = ( Hash( vec2( 8.0, 1.0 ) ) - 0.5 ) * 0.4 + 0.5 * uStrength2 * sin( TAU * uPhase * 0.5 );// Motion 2: the band wanders
-	float amp     = 0.9 * min( uAmount + 0.5 * uStrength2 + 0.5 * uStrength3, 1.2 ) + 0.5 * HitPulse( abs( p.x ) );// a hit runs out sideways from the middle
+	// The swing is part of the shape, so the Form controls always show; Motion 2 and 3 add to it.
+	float amp     = 0.45 * ( 1.0 + 0.5 * uStrength2 + 0.5 * uStrength3 ) + 0.5 * HitPulse( abs( p.x ) );// a hit runs out sideways from the middle
 	// The swing grows from the left edge, so the lines leave the left side
 	// almost calm and tangle further right.
 	float aspect = uViewport.z / uViewport.w;
