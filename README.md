@@ -1,26 +1,29 @@
 # PatternBook
 
-**Minimal generative patterns for Resolume, animated to the beat.**
+**Minimal generative line patterns for Resolume.**
 
-PatternBook draws calm, graphic patterns (Truchet tiles, spirals, broken
-rings, string-art chords, isometric cubes, noise landscapes, flow lines, warped meshes,
-resonating line fields, moiré, Chladni figures) in two colours and moves them in
-time with Resolume's BPM. A **Hit**, by hand or on the beat, sends a wave out
-from the centre that turns tiles, flips cubes or pushes the mesh.
+PatternBook draws clean line work (Truchet tiles, spirals, tunnels, guilloché
+rosettes, string art, Lissajous and Spirograph curves, isometric wireframes,
+flow lines, contour maps, a wireframe landscape, op-art swellings, ripple
+meshes, moiré and Chladni figures) in two colours. Every pattern has three
+**Form** controls for its shape and two **Phase** controls that loop
+seamlessly, made for Resolume's own parameter animation (timeline, BPM sync).
+**Drift** runs Phase 1 on its own in time with the BPM, and a **Hit**, by hand
+or on the beat, sends a wave out from the centre. A shared **Lines** section
+dashes, thins, mirrors and warps every pattern alike.
 
 PatternBook is a native FFGL source plugin for **Resolume Arena and Avenue** on
 **macOS and Windows**.
 
-![All 24 patterns](docs/images/patterns.png)
+![All 25 patterns](docs/images/patterns.png)
 
-- 24 patterns in five families: Grid, Radial, Isometric, Noise and Distortion
+- 25 line patterns in six families: Tiles, Radial, Curves, Iso, Field, Waves
+- Three Form controls and two looping Phase controls per pattern
+- Lines section: dashes that can run along the lines, Thin Out, Mirror up to
+  12-fold kaleidoscopes, Warp
 - Line width in pixels, so lines stay equally sharp at any output resolution
-- Animation speed locked to Resolume's BPM, from still to one cycle per beat
-- **Hit** button and automatic hits on the beat, with their own strength
 - Ink and paper colours, each with alpha, so the paper can be transparent
-- About 2 ms per frame in 1080p on an Intel Iris Plus for most patterns,
-  up to 8–9 ms for the 3D ones (Noise Heights, Circles, Terrain; Terrain
-  with the highest mountains about 11 ms)
+- Most patterns take 2–4 ms per frame in 1080p on an Intel Iris Plus
 
 ## Download and install
 
@@ -46,15 +49,15 @@ PatternBook is a native FFGL source plugin for **Resolume Arena and Avenue** on
 
 Requirements: Resolume Arena or Avenue 7 and a graphics card with OpenGL 4.1.
 
-## Patterns
+## Animating it
 
-| Family | Patterns | Animation | Hit |
-|---|---|---|---|
-| Grid | Arcs, Diagonals, Squares, Dots | tiles make quarter turns, squares turn in a wave, dots breathe | tiles turn as the wave passes |
-| Radial | Spiral, Broken Rings, Rays, Dot Rings, Chords | spiral and rings spin, rays grow and shrink, dot rings slide past each other, chord figures (cardioid, nephroid, stars) morph as their factor sways | twist, gaps open, rays and dots swell, chords jump ahead and slide back |
-| Isometric | Cubes, Wire Cubes, Hatched Cubes, Noise Heights, Lattice | cubes shrink and grow in a wave, wire cubes flip inside out, columns of cubes rise and fall like terraces, lattice weaves | cubes pop, wire cubes flip, columns surge |
-| Noise | Flow Lines, Contours, Terrain, Circles | streams bend around drifting eddies, contour map evolves, flight through the valleys of a wireframe landscape (Form raises the mountains), scattered rings drift and breathe | streams twist, a ridge rises, mountains jump, circles swell |
-| Distortion | Interference, Ripple, Wave Lines, Resonance, Moire Rings, Chladni | mesh pushed by waves from 2–5 sources (set by Seed), ripples, fabric, a band of lines that fan out and cross where three sine generators resonate, orbiting ring centres, Chladni figures morph from mode to mode | a ring of displacement runs outwards, Resonance swells sideways from the middle, Chladni moves to the next mode |
+Each pattern has two **Phase** controls, 0–100 %. Wherever they stand, 0 % and
+100 % give exactly the same picture: a phase only turns something by its own
+symmetry, shifts a repeating structure by one repeat, or drives a wave. So you
+can let Resolume animate a Phase with a looping (saw) animation, BPM-synced or
+on the timeline, and it never jumps. **Drift** adds a steady run of Phase 1 on
+its own; set it to 0 to stop it and drive Phase 1 entirely from Resolume
+(which can also run it backwards).
 
 ## Parameters
 
@@ -62,87 +65,70 @@ Requirements: Resolume Arena or Avenue 7 and a graphics card with OpenGL 4.1.
 
 | Parameter | What it does |
 |---|---|
-| **Pattern** | Which of the 24 patterns to draw, grouped by family. |
+| **Pattern** | Which of the 25 patterns to draw, grouped by family. |
 | **Seed** | Picks a different random layout (0–99). |
-| **Scale** | Cells across the frame height, from 2 to 48. In Radial: Chords, the number of lines (20 to 480). |
-| **Form 1**, **Form 2**, **Form 3** | Three pattern-specific controls; every pattern uses all three, and the display names what each does (see the table below). |
+| **Scale** | Cells across the frame height, from 2 to 48. In the Curves, the number of chords or copies. |
+| **Form 1**, **Form 2**, **Form 3** | The pattern's shape; the display names what each does (see the table below). |
 | **Line Width** | In pixels, from 0.5 to 24. |
-| **Rotation** | Turns the whole pattern. In Noise: Terrain it turns the camera instead, so the flight pans and heads off in a new direction. |
-
-#### What Form 1, Form 2 and Form 3 do
-
-| Pattern | Form 1 | Form 2 | Form 3 |
-|---|---|---|---|
-| Grid: Arcs | ribbon | lines | density |
-| Grid: Diagonals | lines | density | direction |
-| Grid: Squares | size | nested | roundness |
-| Grid: Dots | dot size | wavelength | ring |
-| Radial: Spiral | arms | tightness | hole |
-| Radial: Broken Rings | gaps | segments | speed spread |
-| Radial: Rays | inner radius | count | lengths |
-| Radial: Dot Rings | dot size | density | slide |
-| Radial: Chords | factor | inner radius | span |
-| Iso: Cubes | scatter | contrast | size |
-| Iso: Wire Cubes | inner cube | outline | size |
-| Iso: Hatched Cubes | hatching | top hatching | size |
-| Iso: Noise Heights | height | feature size | terraces |
-| Iso: Lattice | weave | weave length | families |
-| Noise: Flow Lines | turbulence | feature size | detail |
-| Noise: Contours | levels | feature size | detail |
-| Noise: Terrain | height | valley width | view distance |
-| Noise: Circles | rings | density | size spread |
-| Distort: Interference | wavelength | sources | source distance |
-| Distort: Ripple | wavelength | falloff | sharpness |
-| Distort: Wave Lines | frequency | cross wave | vertical change |
-| Distort: Resonance | band width | crossing | left calm |
-| Distort: Moire Rings | spacing | ring ratio | orbit |
-| Distort: Chladni | complexity | levels | warp |
+| **Rotation** | Turns the whole pattern. In Field: Terrain it turns the camera instead, so the flight pans and heads off in a new direction. |
 
 ### Animation
 
 | Parameter | What it does |
 |---|---|
-| **Speed** | How fast the animation runs, locked to Resolume's BPM: from stopped to one cycle per beat. The display shows the cycle length in bars. Moving it changes the pace without a jump. |
-| **Amount** | Master for all movement: scales Motion 1, 2 and 3 together. 0 holds the pattern still. |
-| **Motion 1**, **Motion 2**, **Motion 3** | Three movements of their own in every pattern (see the table below), each with its own strength. Motion 1 is the pattern's main movement and starts at 100 %; Motion 2 and 3 add further movements and start at 0. The display names what each does. |
-| **Loop** | Applies to Motion 1. **Endless** (default) keeps everything moving forward without ever swinging back: chords roll round themselves, squares keep turning, dashes run out along the rays, the lattice glides. **Sway** swings these back and forth instead (chords then morph through their factor, rays grow and shrink). All other patterns already move endlessly and ignore it. |
+| **Phase 1**, **Phase 2** | The pattern's two looping movements (see the table below). |
+| **Drift** | Runs Phase 1 on its own, locked to Resolume's BPM: 0 stops it, turned up it runs faster, up to one cycle per beat. The display shows the cycle length in bars. With Drift at 0 and Hit Every off the pattern stands still. |
 | **Hit** | Sends a wave out from the centre. |
-| **Hit Amount** | How strong a hit is: how far its wave pushes, how high the terrain jumps, and what share of tiles and cubes it turns. 0 switches hits off. |
+| **Hit Amount** | How strong a hit is: how far its wave pushes, how high the terrain jumps, what share of the tiles it turns. 0 switches hits off. |
 | **Hit Every** | Fires Hit automatically every beat up to every 8 bars. |
 
-#### What Motion 1, Motion 2 and Motion 3 do
+### Lines
 
-| Pattern | Motion 1 | Motion 2 | Motion 3 |
-|---|---|---|---|
-| Grid: Arcs | turns | ribbon breath | drift |
-| Grid: Diagonals | turns | drift | line pulse |
-| Grid: Squares | turning | size breath | drift |
-| Grid: Dots | breathing | drift | spin |
-| Radial: Spiral | spin | breath | arm waves |
-| Radial: Broken Rings | spin | gap breath | ring ripple |
-| Radial: Rays | rays | bend | length pulse |
-| Radial: Dot Rings | slide | dot pulse | ring waves |
-| Radial: Chords | roll | factor swing | inner breath |
-| Iso: Cubes | size wave | light | drift |
-| Iso: Wire Cubes | flips | inner breath | drift |
-| Iso: Hatched Cubes | size wave | hatch slide | drift |
-| Iso: Noise Heights | drift | surge | rain |
-| Iso: Lattice | glide | weave travel | spin |
-| Noise: Flow Lines | evolve | flow | vortex |
-| Noise: Contours | evolve | rise | drift |
-| Noise: Terrain | flight | waves | camera sway |
-| Noise: Circles | drift | ring flow | spin |
-| Distort: Interference | waves | wavelength breath | drift |
-| Distort: Ripple | ripples | wander | drift |
-| Distort: Wave Lines | waves | drift | swell |
-| Distort: Resonance | drift | band wander | crossing pulse |
-| Distort: Moire Rings | orbit | ring flow | spacing breath |
-| Distort: Chladni | morph | plate spin | warp wobble |
+These work the same in every pattern.
+
+| Parameter | What it does |
+|---|---|
+| **Dash** | Breaks the lines into dashes; turned up, the gaps grow until only dots are left. |
+| **Dash Length** | Length of one dash and gap. |
+| **Dash Shift** | Moves the dashes along their lines; loops like the Phase controls, so animated it makes them run. |
+| **Thin Out** | Leaves out a random share of the lines. |
+| **Mirror** | Mirror X, Y or both, or a 6-, 8- or 12-fold kaleidoscope. The Curves get mirrored copies instead. |
+| **Warp** | Bends the whole frame with smooth noise; **Warp Size** sets how large the bends are. Not for the Curves. |
 
 ### Ink and Paper
 
-Two colour pickers: **Ink** for the lines and shapes, **Paper** for the
-background. Set Paper's alpha to 0 to lay the pattern over other layers.
+Two colour pickers: **Ink** for the lines, **Paper** for the background. Set
+Paper's alpha to 0 to lay the pattern over other layers.
+
+## Patterns
+
+| Pattern | Form 1 | Form 2 | Form 3 | Phase 1 | Phase 2 |
+|---|---|---|---|---|---|
+| Tiles: Arcs | ribbon | lines | density | tiles turn | ribbons breathe |
+| Tiles: Diagonals | lines | density | direction | tiles turn | lines pulse |
+| Tiles: Hex Arcs | ribbon | lines | density | tiles turn | ribbons breathe |
+| Tiles: Squares | size | nested | roundness | squares turn | squares breathe |
+| Radial: Spiral | arms | tightness | hole | arms flow out | spacing breathes |
+| Radial: Broken Rings | gaps | segments | speed spread | rings turn | gaps breathe |
+| Radial: Rays | inner radius | count | lengths | rays turn | lengths pulse |
+| Radial: Polygons | sides | twist | star / round | tunnel flows | tunnel turns |
+| Radial: Rosette | lobes | depth | bands | curves turn | lobes breathe |
+| Curves: Chords | factor | inner radius | span | inner circle rolls | factor swings |
+| Curves: Lissajous | x frequency | y frequency | spread | figure tumbles | figure spins |
+| Curves: Spirograph | lobes | turns | pen | copies weave | figure spins |
+| Iso: Wire Cubes | inner cube | outline | size | cubes flip | inner cubes breathe |
+| Iso: Hatched Cubes | hatching | top hatching | size | hatching slides | cubes breathe |
+| Iso: Lattice | weave | weave length | families | lines glide | weave travels |
+| Field: Flow Lines | turbulence | feature size | detail | eddies change | middle swirls |
+| Field: Contours | levels | feature size | detail | contours rise | landscape changes |
+| Field: Terrain | height | valley width | view distance | camera flies | camera sways |
+| Field: Circles | rings | density | size spread | rings flow out | circles loop |
+| Waves: Waves | frequency | cross wave | vertical change | waves travel | lines drift |
+| Waves: Resonance | band width | crossing | left calm | generators drift | band wanders |
+| Waves: Bulge | strength | lens size | lenses | lenses orbit | swelling breathes |
+| Waves: Mesh | wavelength | sources | source distance | ripples travel | sources orbit |
+| Waves: Moire | ring ratio | separation | squareness | centres orbit | rings flow |
+| Waves: Chladni | complexity | levels | warp | modes morph | plate turns |
 
 ## For developers
 
@@ -162,12 +148,11 @@ OpenGL context in its default state.
 GitHub Actions builds a universal macOS bundle and an x64 Windows DLL on every
 pull request, publishes **Latest build from main** on every push to `main`,
 and a versioned release for tags `v<version>` that match
-`project(PatternBook VERSION …)`.
+`project(PatternBook VERSION …)`. `main` only takes pull requests whose macOS
+and Windows builds pass.
 
-Parameter IDs follow the menu order. Once a version is released, only append
-parameters, or saved Resolume compositions will mix up their values. The
-Pattern menu is a table in [src/PatternBook.cpp](src/PatternBook.cpp) and is
-kept grouped by family.
+The Pattern menu is a table in [src/PatternBook.cpp](src/PatternBook.cpp),
+grouped by family, which also names what each Form and Phase does.
 
 ### Testing without Resolume (macOS)
 
@@ -183,26 +168,28 @@ an OpenGL 4.1 core context and writes PNG frames:
 
 ### How it works
 
-Everything is drawn in a full-screen fragment shader
+The line patterns are drawn in a full-screen fragment shader
 ([src/Shaders.h](src/Shaders.h)), compiled once per family so each program
-stays small. Each pattern computes, per pixel, how much ink covers it, from
-distances to lines and shapes anti-aliased over one pixel. Warped and noise
-patterns use screen-space derivatives so lines keep their width however the
-field is bent. Noise: Terrain ray-marches a tileable height map that the
-plugin builds once at start-up, which is far cheaper than computing noise at
-every step. The landscape sinks into a valley along the flight line, and the
-plugin reads the same map on the CPU to keep the camera just above the valley
-floor, so it flies through the mountains rather than over them. Radial: Chords
-is the one pattern drawn as geometry: each chord is a thin quad generated in
-the vertex shader, because testing hundreds of long lines per pixel would be
-far too slow. The clock, rate and hits run on the CPU
-([src/PatternBook.cpp](src/PatternBook.cpp)).
+stays small. Every pattern returns the nearest line: its distance in pixels, a
+position along it and a number that tells lines apart. One shared function
+then draws it with the line width, the dashes and Thin Out, anti-aliased over
+one pixel. Lines that are level lines of a field (waves, contours, meshes)
+take their distance and direction from screen-space derivatives, so they keep
+their width however the field is bent. Mirror and Warp transform the frame
+before any pattern sees it.
 
-The patterns are original implementations of well-known generative techniques
-(Truchet tiles, Archimedean spirals, isometric tilings, gradient and value
-noise, stream functions, interference, moiré, Chladni plate modes and
-modular-multiplication chords)
-and are not taken from any pattern collection.
+The Curves are drawn as geometry instead: each chord or curve segment is a
+thin quad generated in the vertex shader, because testing hundreds of long
+lines per pixel would be far too slow. Field: Terrain ray-marches a tileable
+height map that the plugin builds once at start-up; the landscape sinks into a
+valley along the flight line, and the plugin reads the same map on the CPU to
+keep the camera just above the valley floor.
+
+The patterns are original implementations of well-known techniques: Truchet
+tiles, Archimedean spirals, guilloché rosettes, modular-multiplication chords,
+Lissajous figures, hypotrochoids, isometric tilings, gradient and value noise,
+stream functions, op-art lens distortion, interference, moiré and Chladni
+plate modes. They are not taken from any pattern collection.
 
 ## License
 
